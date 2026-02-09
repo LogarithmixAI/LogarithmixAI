@@ -305,12 +305,11 @@ const Homepage = () => {
                 </div>
               ) : (
                 <>
-                  <Button
-                    variant="ghost"
-                    onClick={handleSignIn}
-                    className="hidden sm:flex"
-                  >
+                  <Button variant="ghost" onClick={handleSignIn}>
                     Sign In
+                  </Button>
+                  <Button variant="outline" onClick={handleGetStarted}>
+                    Sign Up
                   </Button>
                   <Button
                     variant="primary"
