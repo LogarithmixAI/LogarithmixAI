@@ -157,4 +157,4 @@ It demonstrates practical implementation of real-time log streaming, anomaly det
 
 Final Year Engineering Project
 AI-Assisted Distributed Log Monitoring System
-<img width="1864" height="1021" alt="image" src="https://github.com/user-attachments/assets/2436e2bd-a761-46c5-ada1-8170507c21f2" />
+
