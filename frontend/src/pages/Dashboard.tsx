@@ -12,22 +12,26 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
 
   // Route to appropriate dashboard based on user role
-  switch (user?.role) {
-    case "super_admin":
-      return <SuperAdminDashboard />;
-    case "org_admin":
-      return <OrgAdminDashboard />;
-    case "security_analyst":
-      return <SecurityAnalystDashboard />;
-    case "devops_engineer":
-      return <DevOpsDashboard />;
-    case "ai_analyst":
-      return <AIAnalystDashboard />;
-    case "viewer":
-      return <ViewerDashboard />;
-    default:
-      return <SecurityAnalystDashboard />;
-  }
+  const renderDashboard = () => {
+    switch (user?.role) {
+      case "super_admin":
+        return <SuperAdminDashboard />;
+      case "org_admin":
+        return <OrgAdminDashboard />;
+      case "security_analyst":
+        return <SecurityAnalystDashboard />;
+      case "devops_engineer":
+        return <DevOpsDashboard />;
+      case "ai_analyst":
+        return <AIAnalystDashboard />;
+      case "viewer":
+        return <ViewerDashboard />;
+      default:
+        return <SecurityAnalystDashboard />;
+    }
+  };
+
+  return renderDashboard();
 };
 
 export default Dashboard;

@@ -71,7 +71,7 @@ const App: React.FC = () => {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Protected app routes - wrapped with MainLayout */}
+          {/* Protected app routes - all under /app/* */}
           <Route
             path="/app"
             element={
@@ -83,7 +83,7 @@ const App: React.FC = () => {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
 
-            {/* Role-specific routes */}
+            {/* Logs - accessible by multiple roles */}
             <Route
               path="logs"
               element={
@@ -92,13 +92,15 @@ const App: React.FC = () => {
                     "super_admin",
                     "org_admin",
                     "security_analyst",
-                    "developer",
+                    "devops_engineer",
                   ]}
                 >
                   <Logs />
                 </ProtectedRoute>
               }
             />
+
+            {/* Analytics - accessible by most roles */}
             <Route
               path="analytics"
               element={
@@ -107,6 +109,7 @@ const App: React.FC = () => {
                     "super_admin",
                     "org_admin",
                     "security_analyst",
+                    "ai_analyst",
                     "viewer",
                   ]}
                 >
@@ -114,6 +117,8 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+
+            {/* Alerts - security focused */}
             <Route
               path="alerts"
               element={
@@ -122,26 +127,31 @@ const App: React.FC = () => {
                     "super_admin",
                     "org_admin",
                     "security_analyst",
+                    "devops_engineer",
                   ]}
                 >
                   <Alerts />
                 </ProtectedRoute>
               }
             />
+
+            {/* AI Insights - for AI analysts and security */}
             <Route
               path="ai-insights"
               element={
                 <ProtectedRoute
                   allowedRoles={[
                     "super_admin",
+                    "ai_analyst",
                     "security_analyst",
-                    "developer",
                   ]}
                 >
                   <AIInsights />
                 </ProtectedRoute>
               }
             />
+
+            {/* Settings - admin only */}
             <Route
               path="settings"
               element={
@@ -150,9 +160,12 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+
+            {/* Profile - accessible by all authenticated users */}
+            <Route path="profile" element={<div>Profile Page</div>} />
           </Route>
 
-          {/* Super Admin specific routes */}
+          {/* Super Admin specific routes (optional - can also be under /app) */}
           <Route
             path="/admin"
             element={
@@ -161,6 +174,8 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           >
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
             <Route path="users" element={<div>User Management</div>} />
             <Route
               path="organizations"

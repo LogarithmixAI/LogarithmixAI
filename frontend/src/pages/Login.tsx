@@ -80,6 +80,7 @@ const Login: React.FC = () => {
   const { login, loginWithRole } = useAuth();
   const navigate = useNavigate();
 
+  // UPDATED: All roles now redirect to /app/dashboard
   const userRoles: UserRole[] = [
     {
       id: "super_admin",
@@ -95,7 +96,7 @@ const Login: React.FC = () => {
         "system_configuration",
       ],
       color: "from-red-500 to-pink-600",
-      defaultRedirect: "/admin/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/admin/dashboard"
       apiEndpoint: "/api/admin",
     },
     {
@@ -112,7 +113,7 @@ const Login: React.FC = () => {
         "configure_alerts",
       ],
       color: "from-blue-500 to-cyan-600",
-      defaultRedirect: "/org/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/org/dashboard"
       apiEndpoint: "/api/org",
     },
     {
@@ -129,7 +130,7 @@ const Login: React.FC = () => {
         "export_reports",
       ],
       color: "from-green-500 to-emerald-600",
-      defaultRedirect: "/security/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/security/dashboard"
       apiEndpoint: "/api/security",
     },
     {
@@ -146,7 +147,7 @@ const Login: React.FC = () => {
         "view_metrics",
       ],
       color: "from-purple-500 to-violet-600",
-      defaultRedirect: "/devops/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/devops/dashboard"
       apiEndpoint: "/api/devops",
     },
     {
@@ -163,7 +164,7 @@ const Login: React.FC = () => {
         "export_analysis",
       ],
       color: "from-indigo-500 to-purple-600",
-      defaultRedirect: "/ai/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/ai/dashboard"
       apiEndpoint: "/api/ai",
     },
     {
@@ -179,7 +180,7 @@ const Login: React.FC = () => {
         "no_write_access",
       ],
       color: "from-gray-500 to-gray-600",
-      defaultRedirect: "/viewer/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/viewer/dashboard"
       apiEndpoint: "/api/viewer",
     },
   ];
@@ -193,6 +194,30 @@ const Login: React.FC = () => {
     ai_analyst: { email: "ai@logsentinel.ai", password: "AI@2024" },
     viewer: { email: "viewer@acme.com", password: "Viewer@2024" },
   };
+
+  // Sample organizations data
+  const sampleOrganizations: Organization[] = [
+    { id: "acme", name: "Acme Corporation", domain: "acme.com", logo: "🏢" },
+    {
+      id: "techcorp",
+      name: "TechCorp Inc",
+      domain: "techcorp.com",
+      logo: "💻",
+    },
+    {
+      id: "cloudscale",
+      name: "CloudScale",
+      domain: "cloudscale.io",
+      logo: "☁️",
+    },
+    { id: "startupx", name: "StartupX", domain: "startupx.dev", logo: "🚀" },
+    {
+      id: "logsentinel",
+      name: "LogSentinel AI",
+      domain: "logsentinel.ai",
+      logo: "🧠",
+    },
+  ];
 
   // Fetch organizations on mount
   useEffect(() => {
@@ -214,35 +239,22 @@ const Login: React.FC = () => {
   const fetchOrganizations = async () => {
     setLoadingOrgs(true);
     try {
-      // You can create an endpoint to fetch public organizations
+      // Try to fetch from API, fallback to sample data
       const response = await fetch("/api/public/organizations");
-      const data = await response.json();
-      setOrganizations(data.organizations || []);
+      if (response.ok) {
+        const data = await response.json();
+        setOrganizations(data.organizations || sampleOrganizations);
+      } else {
+        setOrganizations(sampleOrganizations);
+      }
+      console.log("✅ Organizations loaded");
     } catch (error) {
       console.error("Failed to fetch organizations:", error);
-      // Fallback to sample organizations if API fails
       setOrganizations(sampleOrganizations);
     } finally {
       setLoadingOrgs(false);
     }
   };
-
-  const sampleOrganizations: Organization[] = [
-    { id: "acme", name: "Acme Corporation", domain: "acme.com", logo: "🏢" },
-    {
-      id: "techcorp",
-      name: "TechCorp Inc",
-      domain: "techcorp.com",
-      logo: "💻",
-    },
-    {
-      id: "cloudscale",
-      name: "CloudScale",
-      domain: "cloudscale.io",
-      logo: "☁️",
-    },
-    { id: "startupx", name: "StartupX", domain: "startupx.dev", logo: "🚀" },
-  ];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -250,7 +262,7 @@ const Login: React.FC = () => {
       ...prev,
       [name]: value,
     }));
-    setError(""); // Clear error on input change
+    setError("");
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -259,17 +271,21 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      // Validate inputs
       if (!formData.email || !formData.password) {
         setError("Please enter both email and password");
         setLoading(false);
         return;
       }
 
+      console.log("🔐 Attempting login with:", {
+        email: formData.email,
+        role: selectedRole,
+        org: selectedOrg,
+      });
+
       let result;
 
       if (selectedRole) {
-        // Role-based login
         result = await loginWithRole(
           formData.email,
           formData.password,
@@ -277,12 +293,12 @@ const Login: React.FC = () => {
           selectedOrg || undefined,
         );
       } else {
-        // Standard login
         result = await login(formData.email, formData.password);
       }
 
+      console.log("📥 Login result:", result);
+
       if (result.success) {
-        // Store remember me preference
         if (rememberMe) {
           localStorage.setItem("rememberMe", "true");
           localStorage.setItem("lastEmail", formData.email);
@@ -293,24 +309,17 @@ const Login: React.FC = () => {
 
         toast.success("Login successful! Redirecting...");
 
-        // Redirect based on role or default
-        if (selectedRole) {
-          const role = userRoles.find((r) => r.id === selectedRole);
-          navigate(role?.defaultRedirect || "/app/dashboard");
-        } else {
-          // Get user role from response and redirect accordingly
-          const user = JSON.parse(localStorage.getItem("user") || "{}");
-          const userRole = userRoles.find((r) => r.id === user.role);
-          navigate(userRole?.defaultRedirect || "/app/dashboard");
-        }
+        // UPDATED: Always redirect to /app/dashboard
+        // Dashboard.tsx will handle role-based rendering
+        navigate("/app/dashboard");
       } else {
         setError(result.message || "Invalid email or password");
         toast.error(result.message || "Login failed");
       }
     } catch (err: any) {
+      console.error("❌ Login error:", err);
       const errorMessage =
-        err.response?.data?.message ||
-        "An unexpected error occurred. Please try again.";
+        err.response?.data?.message || err.message || "Login failed";
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -343,8 +352,8 @@ const Login: React.FC = () => {
 
       if (result.success) {
         toast.success(`Demo login successful as ${roleId}!`);
-        const role = userRoles.find((r) => r.id === roleId);
-        navigate(role?.defaultRedirect || "/app/dashboard");
+        // UPDATED: Always redirect to /app/dashboard
+        navigate("/app/dashboard");
       } else {
         setError(`Demo login failed for ${roleId} role`);
         toast.error(`Demo login failed for ${roleId} role`);
@@ -368,7 +377,6 @@ const Login: React.FC = () => {
     setFormData((prev) => ({ ...prev, role: roleId }));
     setShowRoleSelector(false);
 
-    // Auto-fill demo credentials if available
     const demoCred = demoCredentials[roleId as keyof typeof demoCredentials];
     if (demoCred) {
       setFormData((prev) => ({
@@ -395,7 +403,6 @@ const Login: React.FC = () => {
     });
   };
 
-  // Check for remembered email on mount
   useEffect(() => {
     const remembered = localStorage.getItem("rememberMe");
     const lastEmail = localStorage.getItem("lastEmail");
@@ -712,8 +719,9 @@ const Login: React.FC = () => {
                 </div>
               </>
             ) : (
-              /* SIGN UP PROMPT */
+              /* SIGN UP PROMPT - Keep as is */
               <div className="space-y-6">
+                {/* ... Sign up content remains the same ... */}
                 <div className="text-center">
                   <h2 className="text-2xl font-bold text-white mb-4">
                     Join LogSentinel AI
