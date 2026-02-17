@@ -1,23 +1,27 @@
-import React, {
-  createContext,
-  useState,
-  useContext,
-  useEffect,
-  ReactNode,
-} from "react";
+// contexts/AuthContext.tsx
+import React, { createContext, useState, useContext, useEffect } from "react";
+import { authApi } from "../services/api";
+import { toast } from "react-hot-toast";
 
-// Define the user type
-interface User {
-  id: number;
-  name: string;
+export interface User {
+  id: string;
   email: string;
-  role: string;
+  name: string;
+  role: UserRole;
+  organization?: string;
+  permissions: string[];
   avatar?: string;
-  company?: string;
-  plan?: string;
+  lastActive?: string;
 }
 
-// Define the auth context type
+export type UserRole =
+  | "super_admin"
+  | "org_admin"
+  | "security_analyst"
+  | "devops_engineer"
+  | "ai_analyst"
+  | "viewer";
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -25,113 +29,20 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
-  ) => Promise<{ success: boolean; user?: User; message?: string }>;
+  ) => Promise<{ success: boolean; message?: string }>;
+  loginWithRole: (
+    email: string,
+    password: string,
+    role: string,
+    organization?: string,
+  ) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
+  signup: (userData: any) => Promise<{ success: boolean; message?: string }>;
 }
 
-// Define props for AuthProvider
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-// Create the context with default values
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Check for stored auth data on initial load
-    const storedAuth = localStorage.getItem("auth");
-    if (storedAuth) {
-      try {
-        const userData: User = JSON.parse(storedAuth);
-        setUser(userData);
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error("Error parsing stored auth data:", error);
-        localStorage.removeItem("auth");
-      }
-    }
-    setLoading(false);
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    // Demo login logic
-    if (email === "demo@logsentinel.ai" && password === "demo123") {
-      const demoUser: User = {
-        id: 1,
-        name: "Demo User",
-        email,
-        role: "admin",
-        avatar: "DU",
-        company: "LogSentinel AI",
-        plan: "Enterprise",
-      };
-
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      setUser(demoUser);
-      setIsAuthenticated(true);
-      localStorage.setItem("auth", JSON.stringify(demoUser));
-
-      return { success: true, user: demoUser };
-    }
-
-    // For demo purposes, accept any valid email format with password 'password'
-    if (email.includes("@") && password === "password") {
-      const newUser: User = {
-        id: Date.now(),
-        name: email.split("@")[0],
-        email,
-        role: "user",
-        avatar: email[0].toUpperCase(),
-        company: "Acme Inc",
-        plan: "Professional",
-      };
-
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      setUser(newUser);
-      setIsAuthenticated(true);
-      localStorage.setItem("auth", JSON.stringify(newUser));
-
-      return { success: true, user: newUser };
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    return {
-      success: false,
-      message: "Invalid credentials. Try demo@logsentinel.ai / demo123",
-    };
-  };
-
-  const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem("auth");
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated,
-        loading,
-        login,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-// Custom hook to use the auth context
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
@@ -139,5 +50,107 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-// Also export the AuthContext for direct usage if needed
-export { AuthContext };
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (token) {
+        const response = await authApi.getCurrentUser();
+        if (response.data) {
+          setUser(response.data);
+        }
+      }
+    } catch (error) {
+      console.error("Auth check failed:", error);
+      localStorage.removeItem("token");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = async (email: string, password: string) => {
+    try {
+      const response = await authApi.login({ email, password });
+
+      if (response.data?.token) {
+        localStorage.setItem("token", response.data.token);
+        setUser(response.data.user);
+        toast.success("Login successful!");
+        return { success: true };
+      } else {
+        toast.error(response.data?.message || "Login failed");
+        return { success: false, message: response.data?.message };
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Login failed";
+      toast.error(message);
+      return { success: false, message };
+    }
+  };
+
+  const loginWithRole = async (
+    email: string,
+    password: string,
+    role: string,
+    organization?: string,
+  ) => {
+    return login(email, password);
+  };
+
+  const logout = async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      localStorage.removeItem("token");
+      setUser(null);
+      toast.success("Logged out successfully");
+    }
+  };
+
+  const signup = async (userData: any) => {
+    try {
+      const response = await authApi.register(userData);
+
+      if (response.data?.token) {
+        localStorage.setItem("token", response.data.token);
+        setUser(response.data.user);
+        toast.success("Account created successfully!");
+        return { success: true };
+      } else {
+        toast.error(response.data?.message || "Registration failed");
+        return { success: false, message: response.data?.message };
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Registration failed";
+      toast.error(message);
+      return { success: false, message };
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        loading,
+        login,
+        loginWithRole,
+        logout,
+        signup,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};

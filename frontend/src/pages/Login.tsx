@@ -1,3 +1,4 @@
+// pages/Login.tsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,6 +27,8 @@ import {
   BarChart,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { authApi } from "../services/api";
+import { toast } from "react-hot-toast";
 import "./Login.css";
 
 interface LoginFormData {
@@ -43,6 +46,7 @@ interface UserRole {
   permissions: string[];
   color: string;
   defaultRedirect: string;
+  apiEndpoint: string;
 }
 
 interface Organization {
@@ -70,6 +74,8 @@ const Login: React.FC = () => {
   const [showOrgSelector, setShowOrgSelector] = useState<boolean>(false);
   const [showRoleSelector, setShowRoleSelector] = useState<boolean>(false);
   const [isSignupMode, setIsSignupMode] = useState<boolean>(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [loadingOrgs, setLoadingOrgs] = useState<boolean>(false);
 
   const { login, loginWithRole } = useAuth();
   const navigate = useNavigate();
@@ -90,6 +96,7 @@ const Login: React.FC = () => {
       ],
       color: "from-red-500 to-pink-600",
       defaultRedirect: "/admin/dashboard",
+      apiEndpoint: "/api/admin",
     },
     {
       id: "org_admin",
@@ -106,6 +113,7 @@ const Login: React.FC = () => {
       ],
       color: "from-blue-500 to-cyan-600",
       defaultRedirect: "/org/dashboard",
+      apiEndpoint: "/api/org",
     },
     {
       id: "security_analyst",
@@ -122,22 +130,41 @@ const Login: React.FC = () => {
       ],
       color: "from-green-500 to-emerald-600",
       defaultRedirect: "/security/dashboard",
+      apiEndpoint: "/api/security",
     },
     {
-      id: "developer",
-      name: "Developer",
-      description: "Access application logs and performance metrics",
+      id: "devops_engineer",
+      name: "DevOps Engineer",
+      description: "Manage system performance and deployments",
       icon: <Code className="w-5 h-5" />,
       permissions: [
-        "view_app_logs",
-        "performance_monitoring",
-        "log_ingestion",
-        "custom_alerts",
-        "api_access",
-        "debug_access",
+        "view_system_logs",
+        "monitor_performance",
+        "configure_agents",
+        "manage_integrations",
+        "troubleshoot_issues",
+        "view_metrics",
       ],
       color: "from-purple-500 to-violet-600",
-      defaultRedirect: "/dev/dashboard",
+      defaultRedirect: "/devops/dashboard",
+      apiEndpoint: "/api/devops",
+    },
+    {
+      id: "ai_analyst",
+      name: "AI Analyst",
+      description: "Analyze AI models and insights",
+      icon: <Brain className="w-5 h-5" />,
+      permissions: [
+        "train_models",
+        "analyze_patterns",
+        "create_insights",
+        "configure_anomaly_detection",
+        "view_ai_metrics",
+        "export_analysis",
+      ],
+      color: "from-indigo-500 to-purple-600",
+      defaultRedirect: "/ai/dashboard",
+      apiEndpoint: "/api/ai",
     },
     {
       id: "viewer",
@@ -153,15 +180,51 @@ const Login: React.FC = () => {
       ],
       color: "from-gray-500 to-gray-600",
       defaultRedirect: "/viewer/dashboard",
+      apiEndpoint: "/api/viewer",
     },
   ];
 
+  // Demo credentials for testing
   const demoCredentials = {
     super_admin: { email: "admin@logsentinel.ai", password: "Admin@2024" },
     org_admin: { email: "orgadmin@acme.com", password: "OrgAdmin@2024" },
     security_analyst: { email: "security@acme.com", password: "Security@2024" },
-    developer: { email: "dev@acme.com", password: "Developer@2024" },
+    devops_engineer: { email: "devops@acme.com", password: "DevOps@2024" },
+    ai_analyst: { email: "ai@logsentinel.ai", password: "AI@2024" },
     viewer: { email: "viewer@acme.com", password: "Viewer@2024" },
+  };
+
+  // Fetch organizations on mount
+  useEffect(() => {
+    fetchOrganizations();
+  }, []);
+
+  // Auto-detect organization from email domain
+  useEffect(() => {
+    if (formData.email.includes("@")) {
+      const domain = formData.email.split("@")[1];
+      const org = organizations.find((o) => o.domain === domain);
+      if (org) {
+        setSelectedOrg(org.id);
+        setFormData((prev) => ({ ...prev, organization: org.id }));
+      }
+    }
+  }, [formData.email, organizations]);
+
+  const fetchOrganizations = async () => {
+    setLoadingOrgs(true);
+    try {
+      // You can create an endpoint to fetch public organizations
+      const response = await fetch("/api/public/organizations");
+      const data = await response.json();
+      setOrganizations(data.organizations || []);
+    } catch (error) {
+      console.error("Failed to fetch organizations:", error);
+      // Fallback to sample organizations if API fails
+      setOrganizations(sampleOrganizations);
+    } finally {
+      setLoadingOrgs(false);
+    }
   };
 
   const sampleOrganizations: Organization[] = [
@@ -181,23 +244,13 @@ const Login: React.FC = () => {
     { id: "startupx", name: "StartupX", domain: "startupx.dev", logo: "🚀" },
   ];
 
-  useEffect(() => {
-    if (formData.email.includes("@")) {
-      const domain = formData.email.split("@")[1];
-      const org = sampleOrganizations.find((o) => o.domain === domain);
-      if (org) {
-        setSelectedOrg(org.id);
-        setFormData((prev) => ({ ...prev, organization: org.id }));
-      }
-    }
-  }, [formData.email]);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
+    setError(""); // Clear error on input change
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -206,31 +259,60 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
+      // Validate inputs
+      if (!formData.email || !formData.password) {
+        setError("Please enter both email and password");
+        setLoading(false);
+        return;
+      }
+
+      let result;
+
       if (selectedRole) {
-        const result = await loginWithRole(
+        // Role-based login
+        result = await loginWithRole(
           formData.email,
           formData.password,
           selectedRole,
           selectedOrg || undefined,
         );
+      } else {
+        // Standard login
+        result = await login(formData.email, formData.password);
+      }
 
-        if (result.success) {
+      if (result.success) {
+        // Store remember me preference
+        if (rememberMe) {
+          localStorage.setItem("rememberMe", "true");
+          localStorage.setItem("lastEmail", formData.email);
+        } else {
+          localStorage.removeItem("rememberMe");
+          localStorage.removeItem("lastEmail");
+        }
+
+        toast.success("Login successful! Redirecting...");
+
+        // Redirect based on role or default
+        if (selectedRole) {
           const role = userRoles.find((r) => r.id === selectedRole);
           navigate(role?.defaultRedirect || "/app/dashboard");
         } else {
-          setError(result.message || "Invalid credentials for this role");
+          // Get user role from response and redirect accordingly
+          const user = JSON.parse(localStorage.getItem("user") || "{}");
+          const userRole = userRoles.find((r) => r.id === user.role);
+          navigate(userRole?.defaultRedirect || "/app/dashboard");
         }
       } else {
-        const result = await login(formData.email, formData.password);
-
-        if (result.success) {
-          navigate("/app/dashboard");
-        } else {
-          setError(result.message || "Invalid email or password");
-        }
+        setError(result.message || "Invalid email or password");
+        toast.error(result.message || "Login failed");
       }
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
+    } catch (err: any) {
+      const errorMessage =
+        err.response?.data?.message ||
+        "An unexpected error occurred. Please try again.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -249,19 +331,29 @@ const Login: React.FC = () => {
 
     setSelectedRole(roleId);
     setShowDemoCredentials(true);
+    setLoading(true);
 
-    const result = await loginWithRole(
-      credentials.email,
-      credentials.password,
-      roleId,
-      selectedOrg || undefined,
-    );
+    try {
+      const result = await loginWithRole(
+        credentials.email,
+        credentials.password,
+        roleId,
+        selectedOrg || undefined,
+      );
 
-    if (result.success) {
-      const role = userRoles.find((r) => r.id === roleId);
-      navigate(role?.defaultRedirect || "/app/dashboard");
-    } else {
-      setError(`Demo login failed for ${roleId} role`);
+      if (result.success) {
+        toast.success(`Demo login successful as ${roleId}!`);
+        const role = userRoles.find((r) => r.id === roleId);
+        navigate(role?.defaultRedirect || "/app/dashboard");
+      } else {
+        setError(`Demo login failed for ${roleId} role`);
+        toast.error(`Demo login failed for ${roleId} role`);
+      }
+    } catch (err: any) {
+      setError(err.message || "Demo login failed");
+      toast.error("Demo login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -275,11 +367,43 @@ const Login: React.FC = () => {
     setSelectedRole(roleId);
     setFormData((prev) => ({ ...prev, role: roleId }));
     setShowRoleSelector(false);
+
+    // Auto-fill demo credentials if available
+    const demoCred = demoCredentials[roleId as keyof typeof demoCredentials];
+    if (demoCred) {
+      setFormData((prev) => ({
+        ...prev,
+        email: demoCred.email,
+        password: demoCred.password,
+      }));
+    }
   };
 
   const getSelectedRole = () => {
     return userRoles.find((role) => role.id === selectedRole);
   };
+
+  const toggleSignupMode = () => {
+    setIsSignupMode(!isSignupMode);
+    setError("");
+    setSelectedRole("");
+    setFormData({
+      email: "",
+      password: "",
+      organization: "",
+      role: "",
+    });
+  };
+
+  // Check for remembered email on mount
+  useEffect(() => {
+    const remembered = localStorage.getItem("rememberMe");
+    const lastEmail = localStorage.getItem("lastEmail");
+    if (remembered && lastEmail) {
+      setFormData((prev) => ({ ...prev, email: lastEmail }));
+      setRememberMe(true);
+    }
+  }, []);
 
   const fadeInUp = {
     initial: { opacity: 0, y: 20 },
@@ -287,16 +411,13 @@ const Login: React.FC = () => {
     transition: { duration: 0.6 },
   };
 
-  const toggleSignupMode = () => {
-    setIsSignupMode(!isSignupMode);
-    setError("");
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-blue-900 p-4 relative overflow-hidden">
+      {/* Animated background blobs */}
       <div className="absolute inset-0">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
 
       <div className="relative w-full max-w-4xl">
@@ -330,33 +451,46 @@ const Login: React.FC = () => {
               <div className="inline-flex items-center bg-gray-800/50 rounded-full p-1 mb-8">
                 <button
                   onClick={() => setIsSignupMode(false)}
-                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${!isSignupMode ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+                    !isSignupMode
+                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`}
                 >
                   Sign In
                 </button>
                 <button
                   onClick={() => setIsSignupMode(true)}
-                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${isSignupMode ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
+                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+                    isSignupMode
+                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                      : "text-gray-400 hover:text-white"
+                  }`}
                 >
                   Sign Up
                 </button>
               </div>
             </div>
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center space-x-3 p-4 rounded-xl bg-red-900/30 border border-red-800 text-red-200 mb-6"
-              >
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm">{error}</span>
-              </motion.div>
-            )}
+            {/* Error Message */}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex items-center space-x-3 p-4 rounded-xl bg-red-900/30 border border-red-800 text-red-200 mb-6"
+                >
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm">{error}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {!isSignupMode ? (
               /* LOGIN FORM */
               <>
+                {/* Role Selection */}
                 {!selectedRole && (
                   <div className="mb-6">
                     <div className="mb-4">
@@ -373,11 +507,19 @@ const Login: React.FC = () => {
                         <button
                           key={role.id}
                           onClick={() => handleRoleSelect(role.id)}
-                          className={`p-3 rounded-xl border transition-all hover:scale-[1.02] ${selectedRole === role.id ? `border-transparent bg-gradient-to-r ${role.color} bg-opacity-20` : "bg-gray-800/50 border-gray-700 hover:bg-gray-800"}`}
+                          className={`p-3 rounded-xl border transition-all hover:scale-[1.02] ${
+                            selectedRole === role.id
+                              ? `border-transparent bg-gradient-to-r ${role.color} bg-opacity-20`
+                              : "bg-gray-800/50 border-gray-700 hover:bg-gray-800"
+                          }`}
                         >
                           <div className="flex flex-col items-center text-center space-y-2">
                             <div
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center ${selectedRole === role.id ? `bg-gradient-to-r ${role.color}` : "bg-gray-700"}`}
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                selectedRole === role.id
+                                  ? `bg-gradient-to-r ${role.color}`
+                                  : "bg-gray-700"
+                              }`}
                             >
                               {role.icon}
                             </div>
@@ -391,6 +533,7 @@ const Login: React.FC = () => {
                   </div>
                 )}
 
+                {/* Selected Role Display */}
                 {selectedRole && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -427,6 +570,7 @@ const Login: React.FC = () => {
                   </motion.div>
                 )}
 
+                {/* Login Form */}
                 <form onSubmit={handleLoginSubmit} className="space-y-6">
                   <div className="space-y-2">
                     <label
@@ -448,6 +592,7 @@ const Login: React.FC = () => {
                         onChange={handleInputChange}
                         className="w-full pl-10 pr-4 py-3 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="you@company.com"
+                        autoComplete="email"
                       />
                     </div>
                   </div>
@@ -480,6 +625,7 @@ const Login: React.FC = () => {
                         onChange={handleInputChange}
                         className="w-full pl-10 pr-12 py-3 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="••••••••"
+                        autoComplete="current-password"
                       />
                       <button
                         type="button"
@@ -495,6 +641,7 @@ const Login: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Remember Me */}
                   <div className="flex items-center">
                     <input
                       id="remember-me"
@@ -511,6 +658,7 @@ const Login: React.FC = () => {
                     </label>
                   </div>
 
+                  {/* Submit Button */}
                   <button
                     type="submit"
                     disabled={loading}
@@ -537,17 +685,18 @@ const Login: React.FC = () => {
                   </button>
                 </form>
 
-                {/* Demo Login */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleRoleDemoLogin(selectedRole || "developer")
-                  }
-                  className="w-full mt-4 flex items-center justify-center space-x-3 py-3 px-6 bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-xl text-white font-semibold transition-all duration-200 hover:shadow-lg"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  <span>Try Demo Account</span>
-                </button>
+                {/* Demo Login Button */}
+                {selectedRole && (
+                  <button
+                    type="button"
+                    onClick={() => handleRoleDemoLogin(selectedRole)}
+                    disabled={loading}
+                    className="w-full mt-4 flex items-center justify-center space-x-3 py-3 px-6 bg-gray-800/50 hover:bg-gray-800 border border-gray-700 rounded-xl text-white font-semibold transition-all duration-200 hover:shadow-lg disabled:opacity-50"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    <span>Try Demo Account for {getSelectedRole()?.name}</span>
+                  </button>
+                )}
 
                 {/* Sign Up Link */}
                 <div className="mt-8 text-center">

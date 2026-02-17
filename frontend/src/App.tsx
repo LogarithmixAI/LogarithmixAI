@@ -1,3 +1,4 @@
+// App.tsx
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -16,13 +17,17 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import "./index.css";
 
-// Type for ProtectedRoute props
+// Role-based route protection
 interface ProtectedRouteProps {
   children: JSX.Element;
+  allowedRoles?: string[];
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  allowedRoles,
+}) => {
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return (
@@ -42,7 +47,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Check role-based access
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/app/dashboard" replace />;
+  }
+
+  return children;
 };
 
 const App: React.FC = () => {
@@ -68,11 +82,92 @@ const App: React.FC = () => {
           >
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
-            <Route path="logs" element={<Logs />} />
-            <Route path="analytics" element={<Analytics />} />
-            <Route path="alerts" element={<Alerts />} />
-            <Route path="ai-insights" element={<AIInsights />} />
-            <Route path="settings" element={<Settings />} />
+
+            {/* Role-specific routes */}
+            <Route
+              path="logs"
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    "super_admin",
+                    "org_admin",
+                    "security_analyst",
+                    "developer",
+                  ]}
+                >
+                  <Logs />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="analytics"
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    "super_admin",
+                    "org_admin",
+                    "security_analyst",
+                    "viewer",
+                  ]}
+                >
+                  <Analytics />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="alerts"
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    "super_admin",
+                    "org_admin",
+                    "security_analyst",
+                  ]}
+                >
+                  <Alerts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="ai-insights"
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    "super_admin",
+                    "security_analyst",
+                    "developer",
+                  ]}
+                >
+                  <AIInsights />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="settings"
+              element={
+                <ProtectedRoute allowedRoles={["super_admin", "org_admin"]}>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
+          </Route>
+
+          {/* Super Admin specific routes */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRoles={["super_admin"]}>
+                <MainLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="users" element={<div>User Management</div>} />
+            <Route
+              path="organizations"
+              element={<div>Organization Management</div>}
+            />
+            <Route path="billing" element={<div>Billing</div>} />
+            <Route path="system" element={<div>System Settings</div>} />
           </Route>
 
           {/* Catch-all route for 404 */}

@@ -1,12 +1,33 @@
-import React from 'react';
+// pages/Dashboard.tsx
+import React from "react";
+import { useAuth } from "../contexts/AuthContext";
+import SuperAdminDashboard from "./dashboards/SuperAdminDashboard";
+import OrgAdminDashboard from "./dashboards/OrgAdminDashboard";
+import SecurityAnalystDashboard from "./dashboards/SecurityAnalystDashboard";
+import DevOpsDashboard from "./dashboards/DevOpsDashboard";
+import AIAnalystDashboard from "./dashboards/AIAnalystDashboard";
+import ViewerDashboard from "./dashboards/ViewerDashboard";
 
-const Dashboard = () => {
-  return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-      <p className="text-gray-600 dark:text-gray-400 mt-2">Welcome to your dashboard</p>
-    </div>
-  );
+const Dashboard: React.FC = () => {
+  const { user } = useAuth();
+
+  // Route to appropriate dashboard based on user role
+  switch (user?.role) {
+    case "super_admin":
+      return <SuperAdminDashboard />;
+    case "org_admin":
+      return <OrgAdminDashboard />;
+    case "security_analyst":
+      return <SecurityAnalystDashboard />;
+    case "devops_engineer":
+      return <DevOpsDashboard />;
+    case "ai_analyst":
+      return <AIAnalystDashboard />;
+    case "viewer":
+      return <ViewerDashboard />;
+    default:
+      return <SecurityAnalystDashboard />;
+  }
 };
 
 export default Dashboard;
