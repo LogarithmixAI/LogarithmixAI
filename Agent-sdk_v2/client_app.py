@@ -111,6 +111,7 @@ def dashboard():
 # ----------------------------
 
 @app.route("/external")
+@monitor_performance
 def external_call():
     requests.get("https://httpbin.org/get")
     return "✅ External HTTP Success"
