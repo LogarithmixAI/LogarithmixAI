@@ -1,7 +1,6 @@
-// components/common/Layout/Sidebar.tsx
+// components/dashboard/DashboardSidebar.tsx
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { useAuth } from "../../../contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -10,52 +9,61 @@ import {
   BarChart3,
   Settings,
   Users,
+  Database,
   Shield,
   Brain,
   FileText,
   Globe,
   Bell,
+  Clock,
   TrendingUp,
   Cpu,
+  HardDrive,
+  Network,
+  Zap,
   Server,
   Lock,
   Eye,
   Code,
   Key,
+  UserPlus,
   X,
-  Database,
 } from "lucide-react";
 
-interface SidebarProps {
+interface DashboardSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  userRole: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
-
+const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
+  isOpen,
+  onClose,
+  userRole,
+}) => {
   const getMenuItems = () => {
     const baseItems = [
       { path: "/app/dashboard", icon: LayoutDashboard, label: "Dashboard" },
       { path: "/app/logs", icon: Activity, label: "Live Logs" },
-      { path: "/app/analytics", icon: BarChart3, label: "Analytics" },
       { path: "/app/alerts", icon: AlertTriangle, label: "Alerts" },
+      { path: "/app/analytics", icon: BarChart3, label: "Analytics" },
     ];
 
     const roleSpecificItems: Record<string, any[]> = {
       super_admin: [
-        { path: "/admin/organizations", icon: Globe, label: "Organizations" },
-        { path: "/admin/users", icon: Users, label: "Users" },
-        { path: "/admin/system", icon: Server, label: "System" },
-        { path: "/admin/billing", icon: Database, label: "Billing" },
-        { path: "/app/ai-insights", icon: Brain, label: "AI Insights" },
+        { path: "/app/organizations", icon: Globe, label: "Organizations" },
+        { path: "/app/users", icon: Users, label: "Users" },
+        { path: "/app/system", icon: Server, label: "System" },
+        { path: "/app/billing", icon: Database, label: "Billing" },
+        { path: "/app/ai-models", icon: Brain, label: "AI Models" },
+        { path: "/app/security", icon: Shield, label: "Security" },
         { path: "/app/settings", icon: Settings, label: "Settings" },
       ],
       org_admin: [
         { path: "/app/team", icon: Users, label: "Team" },
         { path: "/app/integrations", icon: Globe, label: "Integrations" },
         { path: "/app/api-keys", icon: Key, label: "API Keys" },
-        { path: "/app/ai-insights", icon: Brain, label: "AI Insights" },
+        { path: "/app/billing", icon: Database, label: "Billing" },
         { path: "/app/settings", icon: Settings, label: "Settings" },
       ],
       security_analyst: [
@@ -63,13 +71,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { path: "/app/incidents", icon: AlertTriangle, label: "Incidents" },
         { path: "/app/compliance", icon: Lock, label: "Compliance" },
         { path: "/app/reports", icon: FileText, label: "Reports" },
-        { path: "/app/ai-insights", icon: Brain, label: "AI Insights" },
       ],
       devops_engineer: [
         { path: "/app/services", icon: Server, label: "Services" },
         { path: "/app/containers", icon: Cpu, label: "Containers" },
-        { path: "/app/network", icon: Globe, label: "Network" },
-        { path: "/app/deployments", icon: Code, label: "Deployments" },
+        { path: "/app/network", icon: Network, label: "Network" },
+        { path: "/app/deployments", icon: Zap, label: "Deployments" },
       ],
       ai_analyst: [
         { path: "/app/models", icon: Brain, label: "Models" },
@@ -83,18 +90,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       ],
     };
 
-    return [...baseItems, ...(roleSpecificItems[user?.role || "viewer"] || [])];
+    return [...baseItems, ...(roleSpecificItems[userRole] || [])];
   };
 
   const menuItems = getMenuItems();
-
-  // Handle menu item click - only close on mobile
-  const handleMenuItemClick = () => {
-    // Check if we're on mobile (window width < 1024px)
-    if (window.innerWidth < 1024) {
-      onClose();
-    }
-  };
 
   return (
     <>
@@ -129,21 +128,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <X className="w-5 h-5 text-gray-400" />
           </button>
 
-          {/* User info - mobile only */}
-          <div className="lg:hidden p-4 border-b border-gray-700">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                <span className="text-white font-bold">
-                  {user?.name?.charAt(0) || "U"}
-                </span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">{user?.name}</p>
-                <p className="text-xs text-gray-400">{user?.email}</p>
-              </div>
-            </div>
-          </div>
-
           {/* Menu items */}
           <div className="flex-1 overflow-y-auto py-4">
             <nav className="px-2 space-y-1">
@@ -151,11 +135,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <NavLink
                   key={item.path}
                   to={item.path}
-                  end={
-                    item.path === "/app/dashboard" ||
-                    item.path === "/admin/dashboard"
-                  }
-                  onClick={handleMenuItemClick} // Only closes on mobile
+                  end={item.path === "/app/dashboard"}
+                  onClick={onClose}
                   className={({ isActive }) =>
                     `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
                       isActive
@@ -175,12 +156,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <div className="p-4 border-t border-gray-700">
             <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl p-3">
               <p className="text-xs text-gray-400 mb-2">Need help?</p>
-              <a
-                href="/docs"
-                className="block w-full text-xs text-blue-400 hover:text-blue-300 transition-colors text-center"
-              >
+              <button className="w-full text-xs text-blue-400 hover:text-blue-300 transition-colors">
                 View Documentation
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -189,4 +167,4 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   );
 };
 
-export default Sidebar;
+export default DashboardSidebar;
