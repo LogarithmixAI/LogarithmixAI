@@ -7,7 +7,16 @@ import time
 import random
 import threading
 
+from agent_sdk.simulation.session_simulator import SessionSimulator
+from agent_sdk.simulation.traffic_spike import TrafficSpike
+from agent_sdk.simulation.chaos_engine import ChaosEngine
+
 from sqlalchemy import create_engine, text
+
+from agent_sdk.simulation.chaos_engine import ChaosEngine
+
+chaos = ChaosEngine("http://127.0.0.1:5000")
+chaos.start()
 
 app = Flask(__name__)
 
@@ -194,3 +203,12 @@ if __name__ == "__main__":
     chaos_thread.start()
 
     app.run(port=5000, debug=False, use_reloader=False)
+
+chaos = ChaosEngine("http://127.0.0.1:5000")
+chaos.start()
+
+sessions = SessionSimulator("http://127.0.0.1:5000", users=8)
+sessions.start()
+
+spike = TrafficSpike("http://127.0.0.1:5000")
+spike.schedule_spike(every=60)

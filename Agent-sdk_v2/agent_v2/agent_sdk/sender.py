@@ -7,6 +7,13 @@ from .config import AgentConfig
 from .security import generate_signature
 import json
 
+# ⭐ NEW IMPORTS (ANOMALY)
+from agent_sdk.anomaly.metrics_store import MetricsStore
+from agent_sdk.anomaly.detector import AnomalyDetector
+
+metrics = MetricsStore()
+detector = AnomalyDetector(metrics)
+
 
 def current_utc():
     return datetime.now(timezone.utc).isoformat()
@@ -50,6 +57,20 @@ class Sender:
             },
             "events": batch
         }
+
+        # ⭐ ANOMALY HOOK START
+        try:
+            for event in batch:
+                event_type = event.get("type", "unknown")
+                metrics.record(event_type)
+
+            alerts = detector.check()
+
+            if alerts:
+                payload["batch_meta"]["anomalies"] = alerts
+        except Exception:
+            pass
+        # ⭐ ANOMALY HOOK END
 
         # Stable JSON body
         body = json.dumps(payload, separators=(",", ":"), sort_keys=True)
