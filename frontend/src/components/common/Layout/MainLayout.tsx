@@ -1,23 +1,49 @@
-import React from 'react';
-import { Outlet } from 'react-router-dom';
+// components/common/Layout/MainLayout.tsx
+import React, { useState, useEffect } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import Navbar from "./Navbar";
+import Sidebar from "./Sidebar";
 
-const MainLayout = () => {
+const MainLayout: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const location = useLocation();
+
+  // Auto-close sidebar on mobile when route changes
+  useEffect(() => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  }, [location]);
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setSidebarOpen(true);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <div className="w-64 bg-white shadow">
-        <div className="p-4">
-          <h2 className="text-lg font-bold">Log Monitoring</h2>
-        </div>
-        <nav className="mt-4">
-          <a href="/app/dashboard" className="block p-3 hover:bg-gray-100">Dashboard</a>
-          <a href="/app/logs" className="block p-3 hover:bg-gray-100">Logs</a>
-          <a href="/app/alerts" className="block p-3 hover:bg-gray-100">Alerts</a>
-          <a href="/app/ai-insights" className="block p-3 hover:bg-gray-100">AI Insights</a>
-          <a href="/app/settings" className="block p-3 hover:bg-gray-100">Settings</a>
-        </nav>
-      </div>
-      <div className="flex-1">
-        <Outlet />
+    <div className="min-h-screen bg-gray-900">
+      <Navbar
+        toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        isSidebarOpen={sidebarOpen}
+      />
+      <div className="flex">
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main
+          className={`flex-1 transition-all duration-300 ${
+            sidebarOpen ? "lg:ml-64" : ""
+          }`}
+        >
+          <div className="p-4 sm:p-6">
+            <Outlet />
+          </div>
+        </main>
       </div>
     </div>
   );
