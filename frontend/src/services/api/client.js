@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Use relative URL for proxy, not direct backend URL
+const API_BASE_URL = '/api';  // This will use Vite proxy
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -9,6 +10,8 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Important for CORS with credentials
+  withCredentials: true,
 });
 
 // Request interceptor
@@ -18,6 +21,8 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Log the request for debugging
+    console.log(`🚀 ${config.method.toUpperCase()} request to: ${config.baseURL}${config.url}`, config.data);
     return config;
   },
   (error) => {
@@ -27,15 +32,35 @@ apiClient.interceptors.request.use(
 
 // Response interceptor
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ Response from ${response.config.url}:`, response.data);
+    return response;
+  },
   (error) => {
+    // Log the full error for debugging
+    console.error('❌ API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+    
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
     
-    const message = error.response?.data?.message || error.message;
-    toast.error(message || 'An error occurred');
+    const message = error.response?.data?.message || 
+                   error.response?.data?.error || 
+                   error.message || 
+                   'An error occurred';
+    
+    // Only show toast for user-facing errors, not for 401 (handled separately)
+    if (error.response?.status !== 401) {
+      toast.error(message);
+    }
     
     return Promise.reject(error);
   }

@@ -37,7 +37,18 @@ interface AuthContextType {
     organization?: string,
   ) => Promise<{ success: boolean; message?: string; user?: User }>;
   logout: () => void;
-  signup: (userData: any) => Promise<{ success: boolean; message?: string }>;
+  signup: (
+    email: string,
+    password: string,
+    username: string,
+    role: string,
+    additionalData?: {
+      dob?: string;
+      gender?: string;
+      mobile?: string;
+      country?: string;
+    },
+  ) => Promise<{ success: boolean; message?: string }>;
   refreshUser: () => Promise<void>;
 }
 
@@ -247,38 +258,108 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const signup = async (userData: any) => {
+  const signup = async (
+    email: string,
+    password: string,
+    username: string,
+    role: string,
+    additionalData?: {
+      dob?: string;
+      gender?: string;
+      mobile?: string;
+      country?: string;
+    },
+  ) => {
     try {
-      console.log("📝 Attempting signup:", { email: userData.email });
+      console.log("📝 Attempting signup:", { email, username, role });
+
+      // Prepare the data structure that your backend expects
+      const userData = {
+        email,
+        password,
+        username, // This matches what your backend expects
+        role,
+        ...additionalData, // Spread the additional fields (dob, gender, mobile, country)
+      };
+
+      console.log("📤 Sending signup data:", userData);
 
       const response = await authApi.register(userData);
       console.log("📥 Signup response:", response.data);
 
-      const token = response.data?.token || response.data?.access_token;
-      const newUser =
-        response.data?.user || response.data?.data?.user || response.data;
+      // Check if the response indicates success
+      if (response.data?.success) {
+        const token = response.data.token;
+        const newUser = response.data.user;
 
-      if (token) {
-        localStorage.setItem("token", token);
+        if (token) {
+          localStorage.setItem("token", token);
 
-        if (newUser && typeof newUser === "object" && newUser.id) {
-          setUser(newUser);
-          console.log("✅ User set from signup:", newUser.email);
+          if (newUser && typeof newUser === "object" && newUser.id) {
+            // Map the backend user structure to your frontend User interface
+            const mappedUser: User = {
+              id: newUser.id,
+              email: newUser.email,
+              name: newUser.username || newUser.name,
+              role: mapBackendRoleToFrontend(newUser.role),
+              organization: newUser.organization,
+              permissions: newUser.permissions || [
+                "view_dashboards",
+                "read_logs",
+              ],
+            };
+
+            setUser(mappedUser);
+            console.log("✅ User set from signup:", mappedUser.email);
+          }
+
+          toast.success("Account created successfully!");
+          return { success: true };
         }
-
-        toast.success("Account created successfully!");
-        return { success: true };
-      } else {
-        toast.error(response.data?.message || "Registration failed");
-        return { success: false, message: response.data?.message };
       }
+
+      // If we get here, something went wrong
+      const message = response.data?.message || "Registration failed";
+      toast.error(message);
+      return { success: false, message };
     } catch (error: any) {
       console.error("❌ Signup error:", error);
-      const message =
-        error.response?.data?.message || error.message || "Registration failed";
+
+      // More detailed error logging
+      if (error.response) {
+        console.error("Error response data:", error.response.data);
+        console.error("Error response status:", error.response.status);
+
+        const message =
+          error.response.data?.message ||
+          error.response.data?.error ||
+          `Registration failed (${error.response.status})`;
+        toast.error(message);
+        return { success: false, message };
+      }
+
+      const message = error.message || "Registration failed";
       toast.error(message);
       return { success: false, message };
     }
+  };
+
+  // Helper function to map backend roles to frontend roles
+  const mapBackendRoleToFrontend = (backendRole: string): UserRole => {
+    const roleMap: Record<string, UserRole> = {
+      admin: "security_analyst",
+      manager: "org_admin",
+      developer: "devops_engineer",
+      analyst: "ai_analyst",
+      viewer: "viewer",
+      super_admin: "super_admin",
+      org_admin: "org_admin",
+      security_analyst: "security_analyst",
+      devops_engineer: "devops_engineer",
+      ai_analyst: "ai_analyst",
+    };
+
+    return roleMap[backendRole] || "viewer";
   };
 
   const value = {
