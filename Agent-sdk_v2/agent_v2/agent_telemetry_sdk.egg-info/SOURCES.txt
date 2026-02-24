@@ -14,17 +14,9 @@ agent_sdk/queue.py
 agent_sdk/security.py
 agent_sdk/sender.py
 agent_sdk/severity.py
-agent_sdk/anomaly/detector.py
-agent_sdk/anomaly/metrics_store.py
-agent_sdk/error_patterns/patterns.py
 agent_sdk/integrations/django.py
 agent_sdk/integrations/fastapi.py
 agent_sdk/integrations/flask.py
-agent_sdk/simulation/__init__.py
-agent_sdk/simulation/chaos_engine.py
-agent_sdk/simulation/session_simulator.py
-agent_sdk/simulation/traffic_spike.py
-agent_sdk/traffic/simulator.py
 agent_telemetry_sdk.egg-info/PKG-INFO
 agent_telemetry_sdk.egg-info/SOURCES.txt
 agent_telemetry_sdk.egg-info/dependency_links.txt

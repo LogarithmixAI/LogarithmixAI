@@ -8,10 +8,10 @@ from .security import generate_signature
 import json
 
 # ⭐ NEW IMPORTS (ANOMALY)
-from agent_sdk.anomaly.metrics_store import MetricsStore
-from agent_sdk.anomaly.detector import AnomalyDetector
+from simulator_sdk.anomaly.metrics_store import PatternStore
+from simulator_sdk.anomaly.detector import AnomalyDetector
 
-metrics = MetricsStore()
+metrics = PatternStore()
 detector = AnomalyDetector(metrics)
 
 

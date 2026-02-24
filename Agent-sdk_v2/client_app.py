@@ -7,13 +7,9 @@ import time
 import random
 import threading
 
-from agent_sdk.simulation.session_simulator import SessionSimulator
-from agent_sdk.simulation.traffic_spike import TrafficSpike
-from agent_sdk.simulation.chaos_engine import ChaosEngine
-
+from simulator_sdk import SessionSimulator, TrafficSpike, ChaosEngine
 from sqlalchemy import create_engine, text
 
-from agent_sdk.simulation.chaos_engine import ChaosEngine
 
 chaos = ChaosEngine("http://127.0.0.1:5000")
 chaos.start()
