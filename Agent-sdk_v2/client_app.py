@@ -111,7 +111,6 @@ def dashboard():
 # ----------------------------
 
 @app.route("/external")
-@monitor_performance
 def external_call():
     requests.get("https://httpbin.org/get")
     return "✅ External HTTP Success"
@@ -157,4 +156,4 @@ def db_error():
 # Run Server
 # ----------------------------
 if __name__ == "__main__":
-    app.run(port=5000)
+    app.run(host="0.0.0.0",port=5000)

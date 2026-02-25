@@ -5,6 +5,13 @@ from ..event_builder import build_event
 from ..queue import EventQueue
 
 
+# ✅ safe exception sanitizer
+def sanitize_exception(msg: str, limit: int = 120):
+    if not msg:
+        return ""
+    return msg[:limit]
+
+
 class AgentFastAPIMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
@@ -36,7 +43,7 @@ class AgentFastAPIMiddleware(BaseHTTPMiddleware):
                     "duration_ms": duration_ms
                 },
                 data={
-                    "path": request.url.path,
+                    "path": request.url.path,   # already safe (no query)
                     "method": request.method,
                     "status_code": status_code
                 }
@@ -60,7 +67,7 @@ class AgentFastAPIMiddleware(BaseHTTPMiddleware):
                     "path": request.url.path,
                     "method": request.method,
                     "exception_type": type(e).__name__,
-                    "message": str(e)
+                    "message": sanitize_exception(str(e))  # ✅ sanitized
                 }
             )
 
