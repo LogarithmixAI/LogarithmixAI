@@ -4,7 +4,15 @@ from agent_sdk.performance import monitor_performance
 import requests
 import logging
 import time
+import random
+import threading
+
+from simulator_sdk import SessionSimulator, TrafficSpike, ChaosEngine
 from sqlalchemy import create_engine, text
+
+
+chaos = ChaosEngine("http://127.0.0.1:5000")
+chaos.start()
 
 app = Flask(__name__)
 
@@ -111,7 +119,6 @@ def dashboard():
 # ----------------------------
 
 @app.route("/external")
-@monitor_performance
 def external_call():
     requests.get("https://httpbin.org/get")
     return "✅ External HTTP Success"
@@ -154,7 +161,50 @@ def db_error():
     return "Should fail"
 
 # ----------------------------
+# Automatic Chaos Traffic Generator
+# ----------------------------
+
+def generate_random_event():
+    events = [
+        external_call,
+        http_error,
+        crash,
+        log_error,
+        slow,
+        db_test,
+        db_error
+    ]
+
+    event = random.choice(events)
+
+    try:
+        print(f"[CHAOS] Triggering: {event.__name__}")
+        event()
+    except Exception as e:
+        print(f"[CHAOS] Exception occurred: {e}")
+
+
+def chaos_loop():
+    while True:
+        time.sleep(random.randint(2, 6))  # random interval
+        generate_random_event()
+
+# ----------------------------
 # Run Server
 # ----------------------------
 if __name__ == "__main__":
-    app.run(port=5000)
+    print("🚀 Starting Flask + Chaos Generator")
+
+    chaos_thread = threading.Thread(target=chaos_loop, daemon=True)
+    chaos_thread.start()
+
+    app.run(port=5000, debug=False, use_reloader=False)
+
+chaos = ChaosEngine("http://127.0.0.1:5000")
+chaos.start()
+
+sessions = SessionSimulator("http://127.0.0.1:5000", users=8)
+sessions.start()
+
+spike = TrafficSpike("http://127.0.0.1:5000")
+spike.schedule_spike(every=60)
