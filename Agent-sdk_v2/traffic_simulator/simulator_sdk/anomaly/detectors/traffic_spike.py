@@ -1,15 +1,16 @@
-from ..metrics_store import PatternStore
+def detect_traffic_spike(metrics, pattern_store):
 
-THRESHOLD = 50
+    try:
+        rpm = getattr(metrics, "rpm", lambda: 0)()
 
+        if rpm > 60:
+            return {
+                "type": "traffic_spike",
+                "severity": "high",
+                "rpm": rpm
+            }
 
-def detect_spike():
+    except Exception:
+        return None
 
-    recent = PatternStore.recent(10)
-
-    if len(recent) > THRESHOLD:
-        return {
-            "type": "traffic_spike",
-            "severity": "high",
-            "count": len(recent)
-        }
+    return None

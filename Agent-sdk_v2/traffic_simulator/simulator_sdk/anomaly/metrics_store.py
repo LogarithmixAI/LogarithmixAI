@@ -1,16 +1,13 @@
 from collections import deque
-import time
 
-class PatternStore:
 
-    EVENTS = deque(maxlen=500)
+class MetricsStore:
 
-    @staticmethod
-    def add(event):
-        event["ts"] = time.time()
-        PatternStore.EVENTS.append(event)
+    def __init__(self):
+        self.history = deque(maxlen=200)
 
-    @staticmethod
-    def recent(seconds=60):
-        now = time.time()
-        return [e for e in PatternStore.EVENTS if now - e["ts"] < seconds]
+    def save(self, anomalies):
+        self.history.append(anomalies)
+
+    def recent(self, n=5):
+        return list(self.history)[-n:]

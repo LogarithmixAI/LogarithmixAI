@@ -1,12 +1,6 @@
 class AlertManager:
 
-    @staticmethod
-    def trigger(anomaly):
+    def trigger(self, anomalies):
 
-        print("\n🚨 ANOMALY DETECTED")
-        print(anomaly)
-
-        # future:
-        # send slack
-        # send webhook
-        # send email
+        for a in anomalies:
+            print(f"[ALERT] {a['type']} | severity={a.get('severity')}")

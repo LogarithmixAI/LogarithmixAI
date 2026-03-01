@@ -7,12 +7,10 @@ from .config import AgentConfig
 from .security import generate_signature
 import json
 
-# ⭐ NEW IMPORTS (ANOMALY)
-from simulator_sdk.anomaly.metrics_store import PatternStore
-from simulator_sdk.anomaly.detector import AnomalyDetector
-
-metrics = PatternStore()
-detector = AnomalyDetector(metrics)
+# ⭐ anomaly engine
+from simulator_sdk.anomaly.metrics_store import MetricsStore
+from simulator_sdk.anomaly.anomaly_engine import AnomalyEngine
+metrics = MetricsStore()
 
 
 def current_utc():
@@ -22,7 +20,7 @@ def current_utc():
 class Sender:
 
     RETRY_LIMIT = 5
-    BASE_BACKOFF = 1  # seconds
+    BASE_BACKOFF = 1
 
     @staticmethod
     def start():
@@ -38,10 +36,20 @@ class Sender:
             if not batch:
                 continue
 
-            Sender._send_with_retry(batch)
+            # ⭐ metrics ingest
+            metrics.ingest(batch)
+
+            # ⭐ anomaly detection
+            try:
+                engine = AnomalyEngine(metrics)
+                anomalies = engine.run()
+            except Exception:
+                anomalies = []
+
+            Sender._send_with_retry(batch, anomalies)
 
     @staticmethod
-    def _send_with_retry(batch):
+    def _send_with_retry(batch, anomalies):
 
         if not AgentConfig.api_secret:
             return
@@ -53,26 +61,12 @@ class Sender:
                 "sent_at": current_utc(),
                 "event_count": len(batch),
                 "project": AgentConfig.project,
-                "environment": AgentConfig.environment
+                "environment": AgentConfig.environment,
+                "anomalies": anomalies
             },
             "events": batch
         }
 
-        # ⭐ ANOMALY HOOK START
-        try:
-            for event in batch:
-                event_type = event.get("type", "unknown")
-                metrics.record(event_type)
-
-            alerts = detector.check()
-
-            if alerts:
-                payload["batch_meta"]["anomalies"] = alerts
-        except Exception:
-            pass
-        # ⭐ ANOMALY HOOK END
-
-        # Stable JSON body
         body = json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
         attempt = 0
@@ -107,6 +101,5 @@ class Sender:
             except Exception:
                 pass
 
-            backoff_time = Sender.BASE_BACKOFF * (2 ** attempt)
-            time.sleep(backoff_time)
+            time.sleep(Sender.BASE_BACKOFF * (2 ** attempt))
             attempt += 1

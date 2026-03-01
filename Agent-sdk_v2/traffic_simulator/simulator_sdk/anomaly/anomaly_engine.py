@@ -1,16 +1,22 @@
 from .rules_engine import RulesEngine
+from .metrics_store import MetricsStore
 from .alert_manager import AlertManager
-from .metrics_store import PatternStore
 
 
 class AnomalyEngine:
 
-    @staticmethod
-    def process_event(event):
+    def __init__(self, metrics):
+        self.metrics = metrics
+        self.pattern_store = MetricsStore()
+        self.rules = RulesEngine(self.metrics, self.pattern_store)
+        self.alert = AlertManager()
 
-        PatternStore.add(event)
+    def run(self):
 
-        anomalies = RulesEngine.detect(event)
+        anomalies = self.rules.detect()
 
-        for anomaly in anomalies:
-            AlertManager.trigger(anomaly)
+        if anomalies:
+            self.pattern_store.save(anomalies)
+            self.alert.trigger(anomalies)
+
+        return anomalies
