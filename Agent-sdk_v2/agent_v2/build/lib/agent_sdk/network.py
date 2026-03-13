@@ -9,6 +9,15 @@ from .config import AgentConfig
 _original_request = None
 
 
+# ✅ URL sanitizer (remove query params & fragments)
+def sanitize_url(url: str) -> str:
+    try:
+        parsed = urlparse(url)
+        return f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    except Exception:
+        return url
+
+
 def install_http_patch():
     global _original_request
 
@@ -26,6 +35,9 @@ def install_http_patch():
                     return _original_request(self, method, url, **kwargs)
             except Exception:
                 pass
+
+        # ✅ sanitize URL once
+        safe_url = sanitize_url(url)
 
         start = time.time()
 
@@ -47,7 +59,7 @@ def install_http_patch():
                     },
                     data={
                         "method": method,
-                        "url": url,
+                        "url": safe_url,   # ✅ sanitized
                         "status_code": response.status_code,
                         "response_size": len(response.content)
                     }
@@ -66,7 +78,7 @@ def install_http_patch():
                     },
                     data={
                         "method": method,
-                        "url": url,
+                        "url": safe_url,   # ✅ sanitized
                         "status_code": response.status_code
                     }
                 )
@@ -87,7 +99,7 @@ def install_http_patch():
                 },
                 data={
                     "method": method,
-                    "url": url,
+                    "url": safe_url,   # ✅ sanitized
                     "exception_type": type(e).__name__,
                     "message": str(e)
                 }

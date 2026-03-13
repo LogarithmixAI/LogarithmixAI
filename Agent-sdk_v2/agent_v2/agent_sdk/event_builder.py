@@ -21,9 +21,7 @@ def build_event(event_type, category, status, data, metrics=None):
             "environment": AgentConfig.environment
         },
 
-        "identity": Identity.collect(
-            api_key=AgentConfig.api_key
-        ),
+        "identity": Identity.collect(),
 
         "event": {
             "category": category,

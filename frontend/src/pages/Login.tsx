@@ -1,3 +1,4 @@
+// pages/Login.tsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,6 +27,8 @@ import {
   BarChart,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { authApi } from "../services/api";
+import { toast } from "react-hot-toast";
 import "./Login.css";
 
 interface LoginFormData {
@@ -43,6 +46,7 @@ interface UserRole {
   permissions: string[];
   color: string;
   defaultRedirect: string;
+  apiEndpoint: string;
 }
 
 interface Organization {
@@ -89,7 +93,8 @@ const Login: React.FC = () => {
         "system_configuration",
       ],
       color: "from-red-500 to-pink-600",
-      defaultRedirect: "/admin/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/admin/dashboard"
+      apiEndpoint: "/api/admin",
     },
     {
       id: "org_admin",
@@ -105,7 +110,8 @@ const Login: React.FC = () => {
         "configure_alerts",
       ],
       color: "from-blue-500 to-cyan-600",
-      defaultRedirect: "/org/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/org/dashboard"
+      apiEndpoint: "/api/org",
     },
     {
       id: "security_analyst",
@@ -121,23 +127,42 @@ const Login: React.FC = () => {
         "export_reports",
       ],
       color: "from-green-500 to-emerald-600",
-      defaultRedirect: "/security/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/security/dashboard"
+      apiEndpoint: "/api/security",
     },
     {
-      id: "developer",
-      name: "Developer",
-      description: "Access application logs and performance metrics",
+      id: "devops_engineer",
+      name: "DevOps Engineer",
+      description: "Manage system performance and deployments",
       icon: <Code className="w-5 h-5" />,
       permissions: [
-        "view_app_logs",
-        "performance_monitoring",
-        "log_ingestion",
-        "custom_alerts",
-        "api_access",
-        "debug_access",
+        "view_system_logs",
+        "monitor_performance",
+        "configure_agents",
+        "manage_integrations",
+        "troubleshoot_issues",
+        "view_metrics",
       ],
       color: "from-purple-500 to-violet-600",
-      defaultRedirect: "/dev/dashboard",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/devops/dashboard"
+      apiEndpoint: "/api/devops",
+    },
+    {
+      id: "ai_analyst",
+      name: "AI Analyst",
+      description: "Analyze AI models and insights",
+      icon: <Brain className="w-5 h-5" />,
+      permissions: [
+        "train_models",
+        "analyze_patterns",
+        "create_insights",
+        "configure_anomaly_detection",
+        "view_ai_metrics",
+        "export_analysis",
+      ],
+      color: "from-indigo-500 to-purple-600",
+      defaultRedirect: "/app/dashboard", // CHANGED from "/ai/dashboard"
+      apiEndpoint: "/api/ai",
     },
     {
       id: "viewer",
@@ -160,7 +185,8 @@ const Login: React.FC = () => {
     super_admin: { email: "admin@logsentinel.ai", password: "Admin@2024" },
     org_admin: { email: "orgadmin@acme.com", password: "OrgAdmin@2024" },
     security_analyst: { email: "security@acme.com", password: "Security@2024" },
-    developer: { email: "dev@acme.com", password: "Developer@2024" },
+    devops_engineer: { email: "devops@acme.com", password: "DevOps@2024" },
+    ai_analyst: { email: "ai@logsentinel.ai", password: "AI@2024" },
     viewer: { email: "viewer@acme.com", password: "Viewer@2024" },
   };
 
@@ -179,18 +205,50 @@ const Login: React.FC = () => {
       logo: "☁️",
     },
     { id: "startupx", name: "StartupX", domain: "startupx.dev", logo: "🚀" },
+    {
+      id: "logsentinel",
+      name: "LogSentinel AI",
+      domain: "logsentinel.ai",
+      logo: "🧠",
+    },
   ];
 
+  // Fetch organizations on mount
+  useEffect(() => {
+    fetchOrganizations();
+  }, []);
+
+  // Auto-detect organization from email domain
   useEffect(() => {
     if (formData.email.includes("@")) {
       const domain = formData.email.split("@")[1];
-      const org = sampleOrganizations.find((o) => o.domain === domain);
+      const org = organizations.find((o) => o.domain === domain);
       if (org) {
         setSelectedOrg(org.id);
         setFormData((prev) => ({ ...prev, organization: org.id }));
       }
     }
-  }, [formData.email]);
+  }, [formData.email, organizations]);
+
+  const fetchOrganizations = async () => {
+    setLoadingOrgs(true);
+    try {
+      // Try to fetch from API, fallback to sample data
+      const response = await fetch("/api/public/organizations");
+      if (response.ok) {
+        const data = await response.json();
+        setOrganizations(data.organizations || sampleOrganizations);
+      } else {
+        setOrganizations(sampleOrganizations);
+      }
+      console.log("✅ Organizations loaded");
+    } catch (error) {
+      console.error("Failed to fetch organizations:", error);
+      setOrganizations(sampleOrganizations);
+    } finally {
+      setLoadingOrgs(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -198,6 +256,7 @@ const Login: React.FC = () => {
       ...prev,
       [name]: value,
     }));
+    setError("");
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -207,30 +266,39 @@ const Login: React.FC = () => {
 
     try {
       if (selectedRole) {
-        const result = await loginWithRole(
+        result = await loginWithRole(
           formData.email,
           formData.password,
           selectedRole,
           selectedOrg || undefined,
         );
-
-        if (result.success) {
-          const role = userRoles.find((r) => r.id === selectedRole);
-          navigate(role?.defaultRedirect || "/app/dashboard");
-        } else {
-          setError(result.message || "Invalid credentials for this role");
-        }
       } else {
         const result = await login(formData.email, formData.password);
 
-        if (result.success) {
-          navigate("/app/dashboard");
+      if (result.success) {
+        if (rememberMe) {
+          localStorage.setItem("rememberMe", "true");
+          localStorage.setItem("lastEmail", formData.email);
         } else {
-          setError(result.message || "Invalid email or password");
+          localStorage.removeItem("rememberMe");
+          localStorage.removeItem("lastEmail");
         }
+
+        toast.success("Login successful! Redirecting...");
+
+        // UPDATED: Always redirect to /app/dashboard
+        // Dashboard.tsx will handle role-based rendering
+        navigate("/app/dashboard");
+      } else {
+        setError(result.message || "Invalid email or password");
+        toast.error(result.message || "Login failed");
       }
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
+    } catch (err: any) {
+      console.error("❌ Login error:", err);
+      const errorMessage =
+        err.response?.data?.message || err.message || "Login failed";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -249,19 +317,29 @@ const Login: React.FC = () => {
 
     setSelectedRole(roleId);
     setShowDemoCredentials(true);
+    setLoading(true);
 
-    const result = await loginWithRole(
-      credentials.email,
-      credentials.password,
-      roleId,
-      selectedOrg || undefined,
-    );
+    try {
+      const result = await loginWithRole(
+        credentials.email,
+        credentials.password,
+        roleId,
+        selectedOrg || undefined,
+      );
 
-    if (result.success) {
-      const role = userRoles.find((r) => r.id === roleId);
-      navigate(role?.defaultRedirect || "/app/dashboard");
-    } else {
-      setError(`Demo login failed for ${roleId} role`);
+      if (result.success) {
+        toast.success(`Demo login successful as ${roleId}!`);
+        // UPDATED: Always redirect to /app/dashboard
+        navigate("/app/dashboard");
+      } else {
+        setError(`Demo login failed for ${roleId} role`);
+        toast.error(`Demo login failed for ${roleId} role`);
+      }
+    } catch (err: any) {
+      setError(err.message || "Demo login failed");
+      toast.error("Demo login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -275,11 +353,41 @@ const Login: React.FC = () => {
     setSelectedRole(roleId);
     setFormData((prev) => ({ ...prev, role: roleId }));
     setShowRoleSelector(false);
+
+    const demoCred = demoCredentials[roleId as keyof typeof demoCredentials];
+    if (demoCred) {
+      setFormData((prev) => ({
+        ...prev,
+        email: demoCred.email,
+        password: demoCred.password,
+      }));
+    }
   };
 
   const getSelectedRole = () => {
     return userRoles.find((role) => role.id === selectedRole);
   };
+
+  const toggleSignupMode = () => {
+    setIsSignupMode(!isSignupMode);
+    setError("");
+    setSelectedRole("");
+    setFormData({
+      email: "",
+      password: "",
+      organization: "",
+      role: "",
+    });
+  };
+
+  useEffect(() => {
+    const remembered = localStorage.getItem("rememberMe");
+    const lastEmail = localStorage.getItem("lastEmail");
+    if (remembered && lastEmail) {
+      setFormData((prev) => ({ ...prev, email: lastEmail }));
+      setRememberMe(true);
+    }
+  }, []);
 
   const fadeInUp = {
     initial: { opacity: 0, y: 20 },
