@@ -14,3 +14,5 @@ class AnomalyEngine:
 
         for anomaly in anomalies:
             AlertManager.trigger(anomaly)
+
+        return anomalies
