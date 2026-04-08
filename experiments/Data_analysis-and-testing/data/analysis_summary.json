@@ -1,0 +1,24 @@
+{
+  "total_events": 1746,
+  "unique_hosts": 1,
+  "unique_projects": 1,
+  "success_rate": 73.02405498281786,
+  "error_rate": 26.97594501718214,
+  "high_severity_count": 117,
+  "critical_severity_count": 0,
+  "date_range_start": "2026-02-20 13:00:52.589492+00:00",
+  "date_range_end": "2026-02-21 06:02:26.364315+00:00",
+  "most_active_host": "DESKTOP-N00M686",
+  "peak_hour": 13,
+  "event_types": [
+    "LOG",
+    "INCOMING_REQUEST",
+    "SERVER_ERROR",
+    "DB_QUERY",
+    "HTTP_EXCEPTION",
+    "ROUTING_ERROR",
+    "HTTP_CALL",
+    "DB_ERROR",
+    "HTTP_ERROR"
+  ]
+}
