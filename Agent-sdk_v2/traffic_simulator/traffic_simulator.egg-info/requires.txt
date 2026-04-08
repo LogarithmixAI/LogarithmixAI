@@ -1,7 +1,0 @@
-numpy
-pydantic
-
-[dev]
-pytest
-black
-ruff
