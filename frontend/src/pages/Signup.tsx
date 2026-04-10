@@ -33,6 +33,67 @@ interface SignupFormData {
   acceptTerms: boolean;
 }
 
+// Updated roles to match backend role names
+const roles = [
+  {
+    id: "super_admin",
+    name: "Super Administrator",
+    color: "from-red-500 to-pink-600",
+    description: "Full system access and global management",
+  },
+  {
+    id: "org_admin",
+    name: "Organization Admin",
+    color: "from-blue-500 to-cyan-600",
+    description: "Manage organization settings and users",
+  },
+  {
+    id: "security_analyst",
+    name: "Security Analyst",
+    color: "from-green-500 to-emerald-600",
+    description: "Monitor security logs and investigate incidents",
+  },
+  {
+    id: "devops_engineer",
+    name: "DevOps Engineer",
+    color: "from-purple-500 to-violet-600",
+    description: "Manage system performance and deployments",
+  },
+  {
+    id: "ai_analyst",
+    name: "AI Analyst",
+    color: "from-indigo-500 to-purple-600",
+    description: "Analyze AI models and insights",
+  },
+  {
+    id: "viewer",
+    name: "Viewer",
+    color: "from-gray-500 to-gray-600",
+    description: "Read-only access to dashboards",
+  },
+];
+
+const genders = [
+  { id: "male", name: "Male" },
+  { id: "female", name: "Female" },
+  { id: "other", name: "Other" },
+  { id: "prefer-not-to-say", name: "Prefer not to say" },
+];
+
+const countries = [
+  "United States",
+  "Canada",
+  "United Kingdom",
+  "Australia",
+  "Germany",
+  "France",
+  "Japan",
+  "India",
+  "Brazil",
+  "Singapore",
+  "Other",
+];
+
 const Signup = () => {
   const [formData, setFormData] = useState<SignupFormData>({
     username: "",
@@ -54,39 +115,6 @@ const Signup = () => {
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const { signup, login } = useAuth();
-
-  const roles = [
-    { id: "admin", name: "Administrator", color: "from-red-500 to-pink-600" },
-    { id: "manager", name: "Manager", color: "from-blue-500 to-cyan-600" },
-    {
-      id: "developer",
-      name: "Developer",
-      color: "from-green-500 to-emerald-600",
-    },
-    { id: "analyst", name: "Analyst", color: "from-purple-500 to-violet-600" },
-    { id: "viewer", name: "Viewer", color: "from-gray-500 to-gray-600" },
-  ];
-
-  const genders = [
-    { id: "male", name: "Male" },
-    { id: "female", name: "Female" },
-    { id: "other", name: "Other" },
-    { id: "prefer-not-to-say", name: "Prefer not to say" },
-  ];
-
-  const countries = [
-    "United States",
-    "Canada",
-    "United Kingdom",
-    "Australia",
-    "Germany",
-    "France",
-    "Japan",
-    "India",
-    "Brazil",
-    "Singapore",
-    "Other",
-  ];
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -129,7 +157,7 @@ const Signup = () => {
         formData.email,
         formData.password,
         formData.username,
-        formData.role,
+        formData.role, // This now matches backend role names
         {
           dob: formData.dob,
           gender: formData.gender,
@@ -169,7 +197,7 @@ const Signup = () => {
       gender: "male",
       mobile: "+1234567890",
       country: "United States",
-      role: "admin",
+      role: "super_admin", // Updated to match backend role
       acceptTerms: true,
     });
   };
@@ -571,13 +599,18 @@ const Signup = () => {
                   ))}
                 </select>
                 {formData.role && (
-                  <div className="mt-2 flex items-center space-x-2">
-                    <div
-                      className={`w-3 h-3 rounded-full bg-gradient-to-r ${getSelectedRole()?.color}`}
-                    ></div>
-                    <span className="text-xs text-blue-300">
-                      {getSelectedRole()?.name} role selected
-                    </span>
+                  <div className="mt-2">
+                    <div className="flex items-center space-x-2">
+                      <div
+                        className={`w-3 h-3 rounded-full bg-gradient-to-r ${getSelectedRole()?.color}`}
+                      ></div>
+                      <span className="text-xs text-blue-300">
+                        {getSelectedRole()?.name} role selected
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {getSelectedRole()?.description}
+                    </p>
                   </div>
                 )}
               </div>
@@ -644,7 +677,7 @@ const Signup = () => {
                 className="w-full flex items-center justify-center space-x-3 py-4 px-6 bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-black border border-gray-700 rounded-xl text-white font-semibold transition-all duration-200 hover:shadow-lg"
               >
                 <Sparkles className="w-5 h-5" />
-                <span>Try Demo with Admin Role</span>
+                <span>Try Demo with Super Admin Role</span>
               </button>
             </div>
           </form>
