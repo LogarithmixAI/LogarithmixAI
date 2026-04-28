@@ -88,9 +88,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const menuItems = getMenuItems();
 
-  // Handle menu item click - only close on mobile
   const handleMenuItemClick = () => {
-    // Check if we're on mobile (window width < 1024px)
     if (window.innerWidth < 1024) {
       onClose();
     }
@@ -155,7 +153,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     item.path === "/app/dashboard" ||
                     item.path === "/admin/dashboard"
                   }
-                  onClick={handleMenuItemClick} // Only closes on mobile
+                  onClick={handleMenuItemClick}
                   className={({ isActive }) =>
                     `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
                       isActive

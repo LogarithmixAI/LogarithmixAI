@@ -1,3 +1,4 @@
+import apiClient from './client';
 // services/api/admin.js
 export const adminApi = {
   getSystemHealth: () => apiClient.get('/api/dashboard/super-admin/system-health'),
@@ -14,4 +15,7 @@ export const analyticsApi = {
 // services/api/ai.js
 export const aiApi = {
   getModelStatus: () => apiClient.get('/api/dashboard/super-admin/ai-models'),
+
+getActiveAlerts: (params) => apiClient.get('/api/admin/alerts/active', { params }),
+acknowledgeAlert: (alertId) => apiClient.post(`/api/admin/alerts/${alertId}/acknowledge`),
 };

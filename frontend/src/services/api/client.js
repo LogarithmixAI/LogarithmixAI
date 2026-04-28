@@ -1,76 +1,36 @@
+// services/api/client.js
 import axios from 'axios';
 
-// Create axios instance with relative base URL (empty = same origin)
 const apiClient = axios.create({
-  baseURL: '', // Requests go to the same origin, then Vite proxies /api to backend
+  baseURL: 'http://localhost:8001/api',  
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds
+  withCredentials: true,  
+  timeout: 30000,
 });
 
-// Request interceptor to add auth token
+// Request interceptor (no token needed for session auth)
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    
-    // Debug logging (optional, helps trace requests)
-    console.log(`🚀 ${config.method?.toUpperCase()} request to: ${config.baseURL}${config.url}`, config.data || '');
-    
+    console.log(`🚀 ${config.method?.toUpperCase()} request to: ${config.url}`, config.data || '');
     return config;
   },
-  (error) => {
-    console.error('❌ Request interceptor error:', error);
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor for error handling
+// Response interceptor – return response.data directly
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`✅ Response from ${response.config.url}:`, response.status);
-    return response;
+    console.log(`Response from ${response.config.url}:`, response.status);
+    return response.data;  
   },
   async (error) => {
-    const originalRequest = error.config;
-    
-    console.error('❌ API Error:', {
-      url: originalRequest?.url,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message,
-    });
-    
-    // Handle token expiration (401) - attempt refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        const refreshResponse = await apiClient.post('/api/auth/refresh');
-        const newToken = refreshResponse.data?.token || refreshResponse.data?.access_token;
-        
-        if (newToken) {
-          localStorage.setItem('token', newToken);
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          return apiClient(originalRequest);
-        }
-      } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError);
-        localStorage.removeItem('token');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
-      }
+    console.error('API Error:', error.response?.data || error.message);
+    if (error.response?.status === 401) {
+      // Session expired – redirect to login
+      window.location.href = '/login';
     }
-    
-    // Handle network errors (connection refused, etc.)
-    if (error.code === 'ERR_NETWORK') {
-      console.error('🌐 Network error - is the backend server running on port 8001?');
-      // Optionally show a toast message
-    }
-    
     return Promise.reject(error);
   }
 );

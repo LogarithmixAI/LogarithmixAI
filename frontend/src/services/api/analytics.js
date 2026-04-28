@@ -2,6 +2,8 @@
 import apiClient from './client';
 
 export const analyticsApi = {
+  getAnalytics: (timeRange) => apiClient.get('/api/dashboard/super-admin/analytics', { params: { timeRange } }),
+
   // Get analytics data for a given time range
   getAnalytics: (timeRange) => apiClient.get('/api/analytics', { params: { timeRange } }),
   
