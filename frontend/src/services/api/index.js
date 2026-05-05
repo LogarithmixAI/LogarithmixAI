@@ -12,4 +12,5 @@ export { adminApi } from './admin';      // uses your admin.ts with getActiveAle
 export { orgApi } from './org';
 export { securityApi } from './security';
 export { devopsApi } from './devops';
+export { userApi } from './user';
 export { viewerApi } from './viewer';

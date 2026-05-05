@@ -2,12 +2,13 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { ServiceProvider } from "./contexts/ServiceContext";
 import MainLayout from "./components/common/Layout/MainLayout";
 import Homepage from "./pages/Homepage";
 import Dashboard from "./pages/Dashboard";
 import Logs from "./pages/Logs";
 import Analytics from "./pages/Analytics";
-import Alerts from "./pages/Alerts";
+import Alerts from "./pages/dashboards/user/Alerts";
 import AIInsights from "./pages/AIInsights";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -15,9 +16,30 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+import Reports from "./pages/dashboards/user/Reports";
+
+// Placeholder components (unchanged)
+const Team = () => <div className="text-white p-6">Team Management</div>;
+const Integrations = () => <div className="text-white p-6">Integrations</div>;
+const ApiKeys = () => <div className="text-white p-6">API Keys</div>;
+const Threats = () => <div className="text-white p-6">Threats</div>;
+const Incidents = () => <div className="text-white p-6">Incidents</div>;
+const Compliance = () => <div className="text-white p-6">Compliance</div>;
+const Services = () => <div className="text-white p-6">Services</div>;
+const Containers = () => <div className="text-white p-6">Containers</div>;
+const Network = () => <div className="text-white p-6">Network</div>;
+const Deployments = () => <div className="text-white p-6">Deployments</div>;
+const Models = () => <div className="text-white p-6">AI Models</div>;
+const Insights = () => <div className="text-white p-6">Insights</div>;
+const Training = () => <div className="text-white p-6">Training</div>;
+const Anomalies = () => <div className="text-white p-6">Anomalies</div>;
+const Organizations = () => <div className="text-white p-6">Organizations</div>;
+const Users = () => <div className="text-white p-6">Users</div>;
+const System = () => <div className="text-white p-6">System Settings</div>;
+const Billing = () => <div className="text-white p-6">Billing</div>;
+
 import "./index.css";
 
-// Role-based route protection
 interface ProtectedRouteProps {
   children: JSX.Element;
   allowedRoles?: string[];
@@ -30,6 +52,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
+    // Show loading spinner – do not render children
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-blue-900">
         <div className="text-center">
@@ -48,15 +71,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthenticated) {
+    // Redirect to login – do not render children
     return <Navigate to="/login" replace />;
   }
 
-  // Check role-based access
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/app/dashboard" replace />;
   }
 
-  return children;
+  // Only render children (and ServiceProvider) when authenticated
+  return <ServiceProvider>{children}</ServiceProvider>;
 };
 
 const App: React.FC = () => {
@@ -64,14 +88,14 @@ const App: React.FC = () => {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public routes */}
+          {/* Public routes – no ServiceProvider needed */}
           <Route path="/" element={<Homepage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Protected app routes - all under /app/* */}
+          {/* Protected app routes – ServiceProvider is injected inside ProtectedRoute */}
           <Route
             path="/app"
             element={
@@ -82,8 +106,6 @@ const App: React.FC = () => {
           >
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
-
-            {/* Logs - accessible by multiple roles */}
             <Route
               path="logs"
               element={
@@ -99,8 +121,6 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
-
-            {/* Analytics - accessible by most roles */}
             <Route
               path="analytics"
               element={
@@ -117,8 +137,6 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
-
-            {/* Alerts - security focused */}
             <Route
               path="alerts"
               element={
@@ -134,8 +152,6 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
-
-            {/* AI Insights - for AI analysts and security */}
             <Route
               path="ai-insights"
               element={
@@ -150,8 +166,6 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
-
-            {/* Settings - admin only */}
             <Route
               path="settings"
               element={
@@ -160,12 +174,164 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="profile"
+              element={
+                <ProtectedRoute>
+                  <div className="text-white p-6">Profile Page</div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="reports"
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    "viewer",
+                    "security_analyst",
+                    "super_admin",
+                    "org_admin",
+                  ]}
+                >
+                  <Reports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="dashboards"
+              element={<Navigate to="/app/dashboard" replace />}
+            />
 
-            {/* Profile - accessible by all authenticated users */}
-            <Route path="profile" element={<div>Profile Page</div>} />
+            {/* Role-specific routes (same pattern as above) */}
+            <Route
+              path="team"
+              element={
+                <ProtectedRoute allowedRoles={["org_admin", "super_admin"]}>
+                  <Team />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="integrations"
+              element={
+                <ProtectedRoute allowedRoles={["org_admin", "super_admin"]}>
+                  <Integrations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="api-keys"
+              element={
+                <ProtectedRoute allowedRoles={["org_admin", "super_admin"]}>
+                  <ApiKeys />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="threats"
+              element={
+                <ProtectedRoute
+                  allowedRoles={["security_analyst", "super_admin"]}
+                >
+                  <Threats />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="incidents"
+              element={
+                <ProtectedRoute
+                  allowedRoles={["security_analyst", "super_admin"]}
+                >
+                  <Incidents />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="compliance"
+              element={
+                <ProtectedRoute
+                  allowedRoles={["security_analyst", "super_admin"]}
+                >
+                  <Compliance />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="services"
+              element={
+                <ProtectedRoute
+                  allowedRoles={["devops_engineer", "super_admin"]}
+                >
+                  <Services />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="containers"
+              element={
+                <ProtectedRoute
+                  allowedRoles={["devops_engineer", "super_admin"]}
+                >
+                  <Containers />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="network"
+              element={
+                <ProtectedRoute
+                  allowedRoles={["devops_engineer", "super_admin"]}
+                >
+                  <Network />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="deployments"
+              element={
+                <ProtectedRoute
+                  allowedRoles={["devops_engineer", "super_admin"]}
+                >
+                  <Deployments />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="models"
+              element={
+                <ProtectedRoute allowedRoles={["ai_analyst", "super_admin"]}>
+                  <Models />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="insights"
+              element={
+                <ProtectedRoute allowedRoles={["ai_analyst", "super_admin"]}>
+                  <Insights />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="training"
+              element={
+                <ProtectedRoute allowedRoles={["ai_analyst", "super_admin"]}>
+                  <Training />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="anomalies"
+              element={
+                <ProtectedRoute allowedRoles={["ai_analyst", "super_admin"]}>
+                  <Anomalies />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
-          {/* Super Admin specific routes (optional - can also be under /app) */}
+          {/* Super Admin routes (also wrapped with ProtectedRoute + ServiceProvider) */}
           <Route
             path="/admin"
             element={
@@ -176,16 +342,12 @@ const App: React.FC = () => {
           >
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
-            <Route path="users" element={<div>User Management</div>} />
-            <Route
-              path="organizations"
-              element={<div>Organization Management</div>}
-            />
-            <Route path="billing" element={<div>Billing</div>} />
-            <Route path="system" element={<div>System Settings</div>} />
+            <Route path="organizations" element={<Organizations />} />
+            <Route path="users" element={<Users />} />
+            <Route path="system" element={<System />} />
+            <Route path="billing" element={<Billing />} />
           </Route>
 
-          {/* Catch-all route for 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AuthProvider>

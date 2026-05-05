@@ -1,6 +1,5 @@
 // contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from "react";
-import { authApi } from "../services/api/auth"; // 👈 direct import, avoids index.ts issues
 import { toast } from "react-hot-toast";
 
 export interface User {
@@ -29,14 +28,16 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
-  ) => Promise<{ success: boolean; message?: string; user?: User }>;
+    role?: string,
+    organization?: string,
+  ) => Promise<{ success: boolean; message?: string }>;
   loginWithRole: (
     email: string,
     password: string,
     role: string,
     organization?: string,
-  ) => Promise<{ success: boolean; message?: string; user?: User }>;
-  logout: () => void;
+  ) => Promise<{ success: boolean; message?: string }>;
+  logout: () => Promise<void>;
   signup: (
     email: string,
     password: string,
@@ -55,6 +56,39 @@ export const useAuth = () => {
   return context;
 };
 
+// 🔧 CHANGE 1: Force empty base URL to avoid double /api
+// Remove any environment variable that might set VITE_API_BASE_URL
+const API_BASE_URL = ""; // Always relative – relies on Vite proxy
+
+// 🔧 CHANGE 2: Normalize endpoint to avoid double slashes
+const normalizeEndpoint = (endpoint: string): string => {
+  let e = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  // Remove any leading /api from endpoint because base is empty and proxy expects /api/...
+  // But we want exactly /api/auth/me, so keep it as is.
+  return e;
+};
+
+const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+  try {
+    const fullUrl = `${API_BASE_URL}${normalizeEndpoint(endpoint)}`;
+    console.log(`🌐 Fetching: ${fullUrl}`); // Debug log
+    const response = await fetch(fullUrl, {
+      ...options,
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...options.headers },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return response;
+  } catch (error) {
+    clearTimeout(timeout);
+    throw error;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -62,91 +96,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkAuth();
+    let isMounted = true;
+    checkAuth().finally(() => {
+      if (isMounted) setLoading(false);
+    });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      // Try to get current user – if endpoint not ready, just accept token as valid
-      try {
-        const response = await authApi.getCurrentUser();
-        const userData = response.data?.user || response.data;
-        if (userData?.id) {
-          setUser(mapUser(userData));
-        } else {
-          // Fallback: create a minimal user from token (no backend call)
-          console.warn(
-            "getCurrentUser endpoint not fully implemented, using minimal user",
-          );
-          setUser({
-            id: "local",
-            email: "user@example.com",
-            name: "User",
-            role: "viewer",
-            permissions: ["view_dashboards"],
-          });
+      console.log("Checking auth...");
+      const response = await apiFetch("/api/auth/me");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user) {
+          setUser(mapUser(data.user));
+          console.log("User authenticated:", data.user.email);
+          return;
         }
-      } catch (err) {
-        console.warn("Failed to fetch user, but token exists:", err);
-        // Still consider user authenticated (token exists) – but with limited data
-        setUser({
-          id: "unknown",
-          email: "unknown",
-          name: "User",
-          role: "viewer",
-          permissions: ["view_dashboards"],
-        });
       }
-    } catch (error) {
-      console.error("Auth check error:", error);
-      localStorage.removeItem("token");
-    } finally {
-      setLoading(false);
+      setUser(null);
+      console.log("No active session");
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        console.error("Auth check timeout – backend not responding");
+      } else {
+        console.error("Auth check error:", error);
+      }
+      setUser(null);
     }
   };
 
   const refreshUser = async () => {
     try {
-      const response = await authApi.getCurrentUser();
-      const userData = response.data?.user || response.data;
-      if (userData?.id) setUser(mapUser(userData));
+      const response = await apiFetch("/api/auth/me");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user) {
+          setUser(mapUser(data.user));
+        }
+      }
     } catch (error) {
       console.error("Failed to refresh user:", error);
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (
+    email: string,
+    password: string,
+    role?: string,
+    organization?: string,
+  ) => {
     try {
-      const response = await authApi.login({ email, password });
-      const token = response.data?.token || response.data?.access_token;
-      const userData =
-        response.data?.user || response.data?.data?.user || response.data;
+      const response = await apiFetch("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password, role, organization }),
+      });
+      const data = await response.json();
 
-      if (token) {
-        localStorage.setItem("token", token);
-        if (userData?.id) {
-          setUser(mapUser(userData));
-        } else {
-          await refreshUser();
-        }
+      if (response.ok && data.success) {
+        if (data.user) setUser(mapUser(data.user));
+        else await refreshUser();
         toast.success("Login successful!");
-        return { success: true, user: user || undefined };
+        return { success: true };
+      } else {
+        toast.error(data.message || "Invalid email or password");
+        return { success: false, message: data.message };
       }
-      const message = response.data?.message || "Login failed";
-      toast.error(message);
-      return { success: false, message };
     } catch (error: any) {
       console.error("Login error:", error);
-      const message =
-        error.response?.data?.message || error.message || "Login failed";
-      toast.error(message);
-      return { success: false, message };
+      toast.error(error.message || "Network error");
+      return { success: false, message: error.message };
     }
   };
 
@@ -156,41 +178,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     role: string,
     organization?: string,
   ) => {
-    try {
-      const response = await authApi.login({
-        email,
-        password,
-        role,
-        organization,
-      });
-      const token = response.data?.token || response.data?.access_token;
-      const userData =
-        response.data?.user || response.data?.data?.user || response.data;
-      if (token) {
-        localStorage.setItem("token", token);
-        if (userData?.id) setUser(mapUser(userData));
-        else await refreshUser();
-        toast.success(`Logged in as ${role}`);
-        return { success: true, user: user || undefined };
-      }
-      const message = response.data?.message || "Login failed";
-      toast.error(message);
-      return { success: false, message };
-    } catch (error: any) {
-      const message =
-        error.response?.data?.message || error.message || "Login failed";
-      toast.error(message);
-      return { success: false, message };
-    }
+    return login(email, password, role, organization);
   };
 
   const logout = async () => {
     try {
-      await authApi.logout();
+      await apiFetch("/api/auth/logout", { method: "POST" });
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem("token");
       setUser(null);
       toast.success("Logged out");
     }
@@ -204,34 +200,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     additionalData?: any,
   ) => {
     try {
-      const userData = { email, password, username, role, ...additionalData };
-      const response = await authApi.register(userData);
-      if (response.data?.success) {
-        const token = response.data.token;
-        const newUser = response.data.user;
-        if (token) {
-          localStorage.setItem("token", token);
-          if (newUser?.id) setUser(mapUser(newUser));
-        }
-        toast.success("Account created!");
+      const payload = { email, password, username, role, ...additionalData };
+      const response = await apiFetch("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        if (data.user) setUser(mapUser(data.user));
+        else await refreshUser();
+        toast.success("Account created successfully!");
         return { success: true };
+      } else {
+        toast.error(data.message || "Registration failed");
+        return { success: false, message: data.message };
       }
-      const message = response.data?.message || "Registration failed";
-      toast.error(message);
-      return { success: false, message };
     } catch (error: any) {
-      const message =
-        error.response?.data?.message || error.message || "Registration failed";
-      toast.error(message);
-      return { success: false, message };
+      console.error("Signup error:", error);
+      toast.error(error.message || "Network error");
+      return { success: false, message: error.message };
     }
   };
 
-  // Helper to map backend user to frontend User interface
   const mapUser = (data: any): User => ({
-    id: data.id,
+    id: data.id || data._id,
     email: data.email,
-    name: data.username || data.name,
+    name: data.name || data.username,
     role: data.role || "viewer",
     organization: data.organization,
     permissions: data.permissions || ["view_dashboards"],

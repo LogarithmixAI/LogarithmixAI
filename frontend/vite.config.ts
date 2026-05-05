@@ -33,8 +33,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8001',
         changeOrigin: true,
-        ws: true, // Enable WebSocket proxying (if needed)
-        // Do NOT rewrite the path – backend expects /api/auth/login, /api/public/organizations etc.
+        ws: true,
+         
       },
     },
   },
