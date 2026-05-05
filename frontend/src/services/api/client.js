@@ -2,15 +2,13 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8001/api',  
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true,  
+  baseURL: '/api',   // ✅ Change to relative URL (depends on Vite proxy)
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
   timeout: 30000,
 });
 
-// Request interceptor (no token needed for session auth)
+// Request interceptor – no token needed (session cookie is sent automatically)
 apiClient.interceptors.request.use(
   (config) => {
     console.log(`🚀 ${config.method?.toUpperCase()} request to: ${config.url}`, config.data || '');
@@ -23,12 +21,11 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => {
     console.log(`Response from ${response.config.url}:`, response.status);
-    return response.data;  
+    return response.data;
   },
   async (error) => {
     console.error('API Error:', error.response?.data || error.message);
     if (error.response?.status === 401) {
-      // Session expired – redirect to login
       window.location.href = '/login';
     }
     return Promise.reject(error);

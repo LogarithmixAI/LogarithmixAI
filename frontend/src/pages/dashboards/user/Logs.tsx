@@ -1,7 +1,16 @@
 // pages/Logs.tsx
-import React, { useState, useEffect } from "react";
-import { Search, Filter, Download, RefreshCw } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  Search,
+  Filter,
+  Download,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import { logApi } from "../../../services/api";
+import { useService } from "../../../contexts/ServiceContext";
+import ServiceSelector from "../../../components/ServiceSelector";
 
 interface LogEntry {
   id: string;
@@ -12,39 +21,127 @@ interface LogEntry {
   user_id?: string;
 }
 
+const FASTAPI_BASE = "http://localhost:8000";
+const WS_BASE = "ws://localhost:8000";
+
 const Logs: React.FC = () => {
+  const { currentService } = useService();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
+  const [liveEnabled, setLiveEnabled] = useState(true);
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  const fetchLogs = async () => {
+  const formatLog = (raw: any): LogEntry => ({
+    id: raw._id || crypto.randomUUID(),
+    timestamp: raw.timestamp,
+    source: raw.service || raw.source,
+    severity: mapSeverity(raw.level || raw.severity),
+    message: raw.message,
+    user_id: raw.user_id,
+  });
+
+  const mapSeverity = (level: string): LogEntry["severity"] => {
+    const l = level.toLowerCase();
+    if (l === "error") return "error";
+    if (l === "critical") return "critical";
+    if (l === "warn" || l === "warning") return "warning";
+    return "info";
+  };
+
+  const fetchLogs = useCallback(async () => {
+    if (!currentService) {
+      setLogs([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const params: any = {};
-      if (searchTerm) params.search = searchTerm;
-      if (severityFilter !== "all") params.severity = severityFilter;
-      if (sourceFilter !== "all") params.source = sourceFilter;
-      const response = await logApi.getLogs(params);
-      // Assume response.data is array of logs
-      setLogs(Array.isArray(response) ? response : response.data || []);
+      const url = `${FASTAPI_BASE}/api/logs/${currentService}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      let rawLogs = data.logs || [];
+      // client-side filtering
+      if (searchTerm) {
+        rawLogs = rawLogs.filter((log: any) =>
+          log.message.toLowerCase().includes(searchTerm.toLowerCase()),
+        );
+      }
+      if (severityFilter !== "all") {
+        rawLogs = rawLogs.filter(
+          (log: any) => mapSeverity(log.level) === severityFilter,
+        );
+      }
+      setLogs(rawLogs.map(formatLog));
     } catch (error) {
       console.error("Failed to fetch logs:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentService, searchTerm, severityFilter]);
+
+  const setupWebSocket = useCallback(() => {
+    if (!liveEnabled || !currentService) {
+      if (wsRef.current) wsRef.current.close();
+      setWsConnected(false);
+      return;
+    }
+    const wsUrl = `${WS_BASE}/ws/logs/${currentService}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+    ws.onopen = () => {
+      console.log(`WebSocket connected for ${currentService}`);
+      setWsConnected(true);
+    };
+    ws.onmessage = (event) => {
+      try {
+        const newLogsRaw = JSON.parse(event.data);
+        if (Array.isArray(newLogsRaw) && newLogsRaw.length > 0) {
+          const newFormatted = newLogsRaw.map(formatLog);
+          setLogs((prev) => {
+            const existingIds = new Set(prev.map((l) => l.id));
+            const uniqueNew = newFormatted.filter(
+              (l) => !existingIds.has(l.id),
+            );
+            return [...uniqueNew, ...prev].slice(0, 500);
+          });
+        }
+      } catch (err) {
+        console.error("WebSocket parse error:", err);
+      }
+    };
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      setWsConnected(false);
+    };
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+      setWsConnected(false);
+    };
+  }, [liveEnabled, currentService]);
 
   useEffect(() => {
-    fetchLogs();
-  }, [searchTerm, severityFilter, sourceFilter]);
+    if (!liveEnabled) {
+      fetchLogs();
+    }
+  }, [fetchLogs, liveEnabled]);
+
+  useEffect(() => {
+    setupWebSocket();
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, [setupWebSocket]);
 
   const handleExport = async () => {
     try {
       const blob = await logApi.exportLogs({
         format: "csv",
         ...(searchTerm && { search: searchTerm }),
+        ...(severityFilter !== "all" && { severity: severityFilter }),
+        ...(currentService && { service: currentService }),
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -54,6 +151,15 @@ const Logs: React.FC = () => {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Export failed:", error);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (liveEnabled) {
+      if (wsRef.current) wsRef.current.close();
+      setupWebSocket();
+    } else {
+      fetchLogs();
     }
   };
 
@@ -71,14 +177,29 @@ const Logs: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Live Logs</h1>
           <p className="text-blue-200 mt-1">Real‑time log monitoring</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex items-center space-x-3">
+          <ServiceSelector />
           <button
-            onClick={fetchLogs}
+            onClick={() => setLiveEnabled(!liveEnabled)}
+            className={`p-2 rounded-lg flex items-center gap-2 ${liveEnabled ? "bg-green-600 hover:bg-green-700" : "bg-gray-700 hover:bg-gray-600"}`}
+            title={liveEnabled ? "Live mode on" : "Live mode off"}
+          >
+            {liveEnabled && wsConnected ? (
+              <Wifi className="w-5 h-5 text-white" />
+            ) : (
+              <WifiOff className="w-5 h-5 text-yellow-400" />
+            )}
+            <span className="text-white text-sm">
+              {liveEnabled ? (wsConnected ? "LIVE" : "Reconnecting") : "Paused"}
+            </span>
+          </button>
+          <button
+            onClick={handleRefresh}
             className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"
           >
             <RefreshCw className="w-5 h-5 text-gray-300" />
@@ -93,7 +214,6 @@ const Logs: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="bg-gray-800/50 rounded-xl p-4 flex flex-wrap gap-4 items-center">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -116,20 +236,13 @@ const Logs: React.FC = () => {
           <option value="error">Error</option>
           <option value="critical">Critical</option>
         </select>
-        <select
-          value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
-          className="bg-gray-700 text-white rounded-lg px-3 py-2"
-        >
-          <option value="all">All Sources</option>
-          <option value="api-gateway">API Gateway</option>
-          <option value="auth-service">Auth Service</option>
-          <option value="database">Database</option>
-          <option value="ai-processor">AI Processor</option>
-        </select>
+        {liveEnabled && !currentService && (
+          <span className="text-yellow-400 text-sm">
+            ⚠️ Select a service for live logs
+          </span>
+        )}
       </div>
 
-      {/* Logs Table */}
       <div className="bg-gray-800/50 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -143,7 +256,7 @@ const Logs: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && !liveEnabled ? (
                 <tr>
                   <td colSpan={5} className="text-center py-12 text-gray-400">
                     Loading logs...
@@ -152,7 +265,9 @@ const Logs: React.FC = () => {
               ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-12 text-gray-400">
-                    No logs found
+                    {currentService
+                      ? "No logs found"
+                      : "Select a service to view logs"}
                   </td>
                 </tr>
               ) : (

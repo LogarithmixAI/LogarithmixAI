@@ -56,20 +56,37 @@ export const useAuth = () => {
   return context;
 };
 
-// ========== CONFIGURATION ==========
-const API_BASE_URL = "http://localhost:8001";
+// 🔧 CHANGE 1: Force empty base URL to avoid double /api
+// Remove any environment variable that might set VITE_API_BASE_URL
+const API_BASE_URL = ""; // Always relative – relies on Vite proxy
 
-// Helper fetch with credentials
+// 🔧 CHANGE 2: Normalize endpoint to avoid double slashes
+const normalizeEndpoint = (endpoint: string): string => {
+  let e = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  // Remove any leading /api from endpoint because base is empty and proxy expects /api/...
+  // But we want exactly /api/auth/me, so keep it as is.
+  return e;
+};
+
 const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    credentials: "include", // ✅ required for session cookie
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
-  return response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+  try {
+    const fullUrl = `${API_BASE_URL}${normalizeEndpoint(endpoint)}`;
+    console.log(`🌐 Fetching: ${fullUrl}`); // Debug log
+    const response = await fetch(fullUrl, {
+      ...options,
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...options.headers },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return response;
+  } catch (error) {
+    clearTimeout(timeout);
+    throw error;
+  }
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -79,29 +96,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkAuth();
+    let isMounted = true;
+    checkAuth().finally(() => {
+      if (isMounted) setLoading(false);
+    });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const checkAuth = async () => {
     try {
+      console.log("Checking auth...");
       const response = await apiFetch("/api/auth/me");
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.user) {
           setUser(mapUser(data.user));
-        } else {
-          setUser(null);
+          console.log("User authenticated:", data.user.email);
+          return;
         }
-      } else {
-        // 401 is normal when not logged in – do nothing
-        setUser(null);
       }
-    } catch (error) {
-      // Network errors (e.g., backend down) – still no user
-      console.warn("Auth check network error:", error);
       setUser(null);
-    } finally {
-      setLoading(false);
+      console.log("No active session");
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        console.error("Auth check timeout – backend not responding");
+      } else {
+        console.error("Auth check error:", error);
+      }
+      setUser(null);
     }
   };
 
@@ -133,25 +157,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Session cookie should be set automatically by the backend
-        if (data.user) {
-          setUser(mapUser(data.user));
-        } else {
-          await refreshUser(); // fallback: fetch fresh user data
-        }
+        if (data.user) setUser(mapUser(data.user));
+        else await refreshUser();
         toast.success("Login successful!");
         return { success: true };
       } else {
-        const message = data.message || "Invalid email or password";
-        toast.error(message);
-        return { success: false, message };
+        toast.error(data.message || "Invalid email or password");
+        return { success: false, message: data.message };
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      const message =
-        error.message || "Network error – is the backend running?";
-      toast.error(message);
-      return { success: false, message };
+      toast.error(error.message || "Network error");
+      return { success: false, message: error.message };
     }
   };
 
@@ -191,28 +208,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const data = await response.json();
 
       if (response.ok && data.success) {
-        if (data.user) {
-          setUser(mapUser(data.user));
-        } else {
-          await refreshUser();
-        }
+        if (data.user) setUser(mapUser(data.user));
+        else await refreshUser();
         toast.success("Account created successfully!");
         return { success: true };
       } else {
-        const message = data.message || "Registration failed";
-        toast.error(message);
-        return { success: false, message };
+        toast.error(data.message || "Registration failed");
+        return { success: false, message: data.message };
       }
     } catch (error: any) {
       console.error("Signup error:", error);
-      const message = error.message || "Network error";
-      toast.error(message);
-      return { success: false, message };
+      toast.error(error.message || "Network error");
+      return { success: false, message: error.message };
     }
   };
 
   const mapUser = (data: any): User => ({
-    id: data.id,
+    id: data.id || data._id,
     email: data.email,
     name: data.name || data.username,
     role: data.role || "viewer",

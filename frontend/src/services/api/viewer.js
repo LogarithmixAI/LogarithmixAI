@@ -1,19 +1,29 @@
-// services/api/viewer.js
+// src/services/api/viewer.js
 import apiClient from './client';
 
 export const viewerApi = {
-  // Statistics for top cards
-  getStats: () => apiClient.get('/dashboard/viewer/stats'),
-  
-  // Available reports (with optional filters)
+  // Existing methods (keep as is)
+  getStats: (params) => apiClient.get('/dashboard/viewer/stats', { params }),
   getReports: (params) => apiClient.get('/dashboard/viewer/reports', { params }),
-  
-  // Popular dashboards (sidebar list)
-  getPopularDashboards: () => apiClient.get('/dashboard/viewer/dashboards/popular'),
-  
-  // Quick view numbers (log volume, active users, security events)
-  getQuickView: () => apiClient.get('/dashboard/viewer/quick-view'),
-  
-  // Export data (POST with JSON body, returns a file blob)
-  exportData: (payload) => apiClient.post('/dashboard/viewer/export', payload, { responseType: 'blob' })
+  getPopularDashboards: (params) => apiClient.get('/dashboard/viewer/dashboards/popular', { params }),
+  getQuickView: (params) => apiClient.get('/dashboard/viewer/quick-view', { params }),
+  exportData: (payload) => apiClient.post('/dashboard/viewer/export', payload, { responseType: 'blob' }),
+  getAvailableServices: () => apiClient.get('/dashboard/viewer/services'),
+
+  // Resource management
+  getResources: (params) => apiClient.get('/dashboard/viewer/resources', { params }),
+  addResource: (data) => apiClient.post('/dashboard/viewer/resources', data),
+  deleteResource: (id) => apiClient.delete(`/dashboard/viewer/resources/${id}`),
+
+  // Anomalies & AI
+  getAnomalies: (params) => apiClient.get('/dashboard/viewer/anomalies', { params }),
+  getAIRecommendations: (params) => apiClient.get('/dashboard/viewer/ai-recommendations', { params }),
+  applyAIRecommendation: (payload) => apiClient.post('/dashboard/viewer/ai-recommendations/apply', payload),
+
+  // Live logs & Analytics
+  getLiveLogs: (resourceId, since) => apiClient.get('/dashboard/viewer/logs/live', { params: { resourceId, since } }),
+  getResourceAnalytics: (resourceId) => apiClient.get(`/dashboard/viewer/analytics/resource/${resourceId}`),
+
+  // Alerts
+  getAlerts: (params) => apiClient.get('/dashboard/viewer/alerts', { params }),
 };

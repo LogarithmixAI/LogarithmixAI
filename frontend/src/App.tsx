@@ -2,12 +2,13 @@
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { ServiceProvider } from "./contexts/ServiceContext";
 import MainLayout from "./components/common/Layout/MainLayout";
 import Homepage from "./pages/Homepage";
 import Dashboard from "./pages/Dashboard";
 import Logs from "./pages/Logs";
 import Analytics from "./pages/Analytics";
-import Alerts from "./pages/dashboards/viewer/Alerts";
+import Alerts from "./pages/dashboards/user/Alerts";
 import AIInsights from "./pages/AIInsights";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
@@ -15,10 +16,9 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
-import Reports from "./pages/dashboards/viewer/Reports"; // ✅ new import
+import Reports from "./pages/dashboards/user/Reports";
 
-// Placeholder imports for role-specific pages (create these files if needed)
-// For now, we'll use simple inline components to avoid missing file errors.
+// Placeholder components (unchanged)
 const Team = () => <div className="text-white p-6">Team Management</div>;
 const Integrations = () => <div className="text-white p-6">Integrations</div>;
 const ApiKeys = () => <div className="text-white p-6">API Keys</div>;
@@ -33,7 +33,6 @@ const Models = () => <div className="text-white p-6">AI Models</div>;
 const Insights = () => <div className="text-white p-6">Insights</div>;
 const Training = () => <div className="text-white p-6">Training</div>;
 const Anomalies = () => <div className="text-white p-6">Anomalies</div>;
-// Admin pages
 const Organizations = () => <div className="text-white p-6">Organizations</div>;
 const Users = () => <div className="text-white p-6">Users</div>;
 const System = () => <div className="text-white p-6">System Settings</div>;
@@ -53,6 +52,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
+    // Show loading spinner – do not render children
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-blue-900">
         <div className="text-center">
@@ -71,6 +71,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthenticated) {
+    // Redirect to login – do not render children
     return <Navigate to="/login" replace />;
   }
 
@@ -78,7 +79,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/app/dashboard" replace />;
   }
 
-  return children;
+  // Only render children (and ServiceProvider) when authenticated
+  return <ServiceProvider>{children}</ServiceProvider>;
 };
 
 const App: React.FC = () => {
@@ -86,14 +88,14 @@ const App: React.FC = () => {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public routes */}
+          {/* Public routes – no ServiceProvider needed */}
           <Route path="/" element={<Homepage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Protected app routes */}
+          {/* Protected app routes – ServiceProvider is injected inside ProtectedRoute */}
           <Route
             path="/app"
             element={
@@ -174,10 +176,12 @@ const App: React.FC = () => {
             />
             <Route
               path="profile"
-              element={<div className="text-white p-6">Profile Page</div>}
+              element={
+                <ProtectedRoute>
+                  <div className="text-white p-6">Profile Page</div>
+                </ProtectedRoute>
+              }
             />
-
-            {/* ✅ NEW: Reports route */}
             <Route
               path="reports"
               element={
@@ -193,14 +197,12 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               }
             />
-
-            {/* ✅ NEW: Redirect /app/dashboards to /app/dashboard */}
             <Route
               path="dashboards"
               element={<Navigate to="/app/dashboard" replace />}
             />
 
-            {/* Role-specific routes (using inline components for now) */}
+            {/* Role-specific routes (same pattern as above) */}
             <Route
               path="team"
               element={
@@ -329,7 +331,7 @@ const App: React.FC = () => {
             />
           </Route>
 
-          {/* Super Admin routes */}
+          {/* Super Admin routes (also wrapped with ProtectedRoute + ServiceProvider) */}
           <Route
             path="/admin"
             element={

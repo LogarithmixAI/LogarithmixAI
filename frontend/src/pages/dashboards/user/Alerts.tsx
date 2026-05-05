@@ -8,6 +8,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { alertApi } from "../../../services/api";
+import { useService } from "../../../contexts/ServiceContext";
+import ServiceSelector from "../../../components/ServiceSelector";
 
 interface Alert {
   id: string;
@@ -20,6 +22,7 @@ interface Alert {
 }
 
 const Alerts: React.FC = () => {
+  const { currentService } = useService();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [severityFilter, setSeverityFilter] = useState("all");
@@ -28,7 +31,10 @@ const Alerts: React.FC = () => {
   const fetchAlerts = async () => {
     setLoading(true);
     try {
-      const params: any = { status: statusFilter };
+      const params: any = {
+        status: statusFilter,
+        service: currentService,
+      };
       if (severityFilter !== "all") params.severity = severityFilter;
       const response = await alertApi.getAlerts(params);
       setAlerts(Array.isArray(response) ? response : response.data || []);
@@ -41,12 +47,12 @@ const Alerts: React.FC = () => {
 
   useEffect(() => {
     fetchAlerts();
-  }, [severityFilter, statusFilter]);
+  }, [severityFilter, statusFilter, currentService]);
 
   const handleAcknowledge = async (alertId: string) => {
     try {
       await alertApi.acknowledgeAlert(alertId);
-      fetchAlerts(); // refresh
+      fetchAlerts();
     } catch (error) {
       console.error("Failed to acknowledge alert:", error);
     }
@@ -78,17 +84,20 @@ const Alerts: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Alerts</h1>
           <p className="text-blue-200 mt-1">Security and system alerts</p>
         </div>
-        <button
-          onClick={fetchAlerts}
-          className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"
-        >
-          <RefreshCw className="w-5 h-5 text-gray-300" />
-        </button>
+        <div className="flex items-center space-x-3">
+          <ServiceSelector />
+          <button
+            onClick={fetchAlerts}
+            className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600"
+          >
+            <RefreshCw className="w-5 h-5 text-gray-300" />
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

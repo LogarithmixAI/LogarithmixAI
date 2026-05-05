@@ -18,10 +18,13 @@ import {
   Cell,
 } from "recharts";
 import { analyticsApi } from "../../../services/api";
+import { useService } from "../../../contexts/ServiceContext";
+import ServiceSelector from "../../../components/ServiceSelector";
 
 const COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444"];
 
 const Analytics: React.FC = () => {
+  const { currentService } = useService();
   const [timeRange, setTimeRange] = useState("24h");
   const [timeSeriesData, setTimeSeriesData] = useState<any[]>([]);
   const [topSources, setTopSources] = useState<any[]>([]);
@@ -29,13 +32,15 @@ const Analytics: React.FC = () => {
 
   useEffect(() => {
     fetchAnalytics();
-  }, [timeRange]);
+  }, [timeRange, currentService]);
 
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const response = await analyticsApi.getAnalytics({ timeRange });
-      // Assume response.data has timeSeriesData and topSources
+      const response = await analyticsApi.getAnalytics({
+        timeRange,
+        service: currentService,
+      });
       const data = response.data || response;
       setTimeSeriesData(data.timeSeriesData || []);
       setTopSources(data.topSources || []);
@@ -48,23 +53,26 @@ const Analytics: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Analytics</h1>
           <p className="text-blue-200 mt-1">
             System performance and log analytics
           </p>
         </div>
-        <select
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-          className="bg-gray-700 text-white rounded-lg px-3 py-2"
-        >
-          <option value="1h">Last Hour</option>
-          <option value="6h">Last 6 Hours</option>
-          <option value="24h">Last 24 Hours</option>
-          <option value="7d">Last 7 Days</option>
-        </select>
+        <div className="flex items-center space-x-3">
+          <ServiceSelector />
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="bg-gray-700 text-white rounded-lg px-3 py-2"
+          >
+            <option value="1h">Last Hour</option>
+            <option value="6h">Last 6 Hours</option>
+            <option value="24h">Last 24 Hours</option>
+            <option value="7d">Last 7 Days</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (

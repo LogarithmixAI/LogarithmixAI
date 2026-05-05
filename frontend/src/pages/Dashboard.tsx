@@ -1,4 +1,4 @@
-// pages/Dashboard.tsx
+// src/pages/Dashboard.tsx
 import React from "react";
 import { useAuth } from "../contexts/AuthContext";
 import SuperAdminDashboard from "./dashboards/superAdmin/SuperAdminDashboard";
@@ -6,7 +6,8 @@ import OrgAdminDashboard from "./dashboards/OrgAdminDashboard";
 import SecurityAnalystDashboard from "./dashboards/SecurityAnalystDashboard";
 import DevOpsDashboard from "./dashboards/DevOpsDashboard";
 import AIAnalystDashboard from "./dashboards/AIAnalystDashboard";
-import ViewerDashboard from "./dashboards/viewer/ViewerDashboard";
+// UserDashboard (formerly viewer) – includes full resource management, AI, logs
+import UserDashboard from "./dashboards/user/UserDashboard";
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -22,9 +23,9 @@ const Dashboard: React.FC = () => {
     case "ai_analyst":
       return <AIAnalystDashboard />;
     case "viewer":
-      return <ViewerDashboard />;
+      return <UserDashboard />; // now the full user dashboard
     default:
-      return <ViewerDashboard />;
+      return <UserDashboard />;
   }
 };
 
