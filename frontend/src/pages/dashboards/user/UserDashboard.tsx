@@ -1,5 +1,5 @@
 // src/pages/dashboards/user/UserDashboard.tsx
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Eye,
   BarChart3,
@@ -23,6 +23,10 @@ import {
   TrendingUp,
   Bell,
   X,
+  Search,
+  Pause,
+  Play,
+  ArrowDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -34,7 +38,7 @@ import { ServiceProvider } from "../../../contexts/ServiceContext";
 // ==================== TYPES ====================
 interface Resource {
   id: string;
-  _id?: string; // for compatibility
+  _id?: string;
   name: string;
   type: "website" | "container" | "server";
   address: string;
@@ -77,11 +81,12 @@ interface LogEntry {
   _id: string;
   timestamp: string;
   message: string;
-  severity?: string;
+  level?: string; // from FastAPI logs (ERROR, WARN, INFO, DEBUG)
+  service?: string;
   source?: string;
 }
 
-// Helper to ensure every object has an `id` field (from `_id` or existing `id`)
+// Helper
 const ensureId = <T extends { _id?: string; id?: string }>(
   obj: T,
 ): T & { id: string } => {
@@ -95,7 +100,7 @@ const UserDashboard: React.FC = () => {
   const { user } = useAuth();
   const { currentService } = useService();
 
-  // State
+  // Existing state
   const [resources, setResources] = useState<Resource[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [aiRecommendations, setAiRecommendations] = useState<
@@ -118,28 +123,30 @@ const UserDashboard: React.FC = () => {
     type: "success" | "error";
   } | null>(null);
 
-  // Live logs modal
+  // Live logs modal state (WebSocket version)
   const [selectedResource, setSelectedResource] = useState<Resource | null>(
     null,
   );
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
-    null,
-  );
+  const [websocket, setWebsocket] = useState<WebSocket | null>(null);
+  const [filterText, setFilterText] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<string[]>([]);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [streamActive, setStreamActive] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
-  // Alerts modal
+  // Alerts & analytics
   const [showAlerts, setShowAlerts] = useState(false);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
 
-  // Helper: show toast notification
+  // Helper
   const showToast = (message: string, type: "success" | "error") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
 
-  // Safe fetch helper
   const safeFetch = async (promise: Promise<any>, name: string) => {
     try {
       const result = await promise;
@@ -150,32 +157,23 @@ const UserDashboard: React.FC = () => {
     }
   };
 
-  // Fetch all dashboard data (improved error handling)
+  // Fetch dashboard data
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
       const params = { service: currentService || undefined };
+      const [resourcesRes, anomaliesRes, aiRes, alertsRes, statsRes] =
+        await Promise.all([
+          safeFetch(viewerApi.getResources(params), "getResources"),
+          safeFetch(viewerApi.getAnomalies(params), "getAnomalies"),
+          safeFetch(
+            viewerApi.getAIRecommendations(params),
+            "getAIRecommendations",
+          ),
+          safeFetch(viewerApi.getAlerts(params), "getAlerts"),
+          safeFetch(viewerApi.getStats(params), "getStats"),
+        ]);
 
-      // Fetch each endpoint independently
-      const resourcesRes = await safeFetch(
-        viewerApi.getResources(params),
-        "getResources",
-      );
-      const anomaliesRes = await safeFetch(
-        viewerApi.getAnomalies(params),
-        "getAnomalies",
-      );
-      const aiRes = await safeFetch(
-        viewerApi.getAIRecommendations(params),
-        "getAIRecommendations",
-      );
-      const alertsRes = await safeFetch(
-        viewerApi.getAlerts(params),
-        "getAlerts",
-      );
-      const statsRes = await safeFetch(viewerApi.getStats(params), "getStats");
-
-      // Transform resources: ensure each has `id` (from `_id`)
       const fetchedResources = (
         resourcesRes.success
           ? resourcesRes.data?.data || resourcesRes.data || []
@@ -183,7 +181,6 @@ const UserDashboard: React.FC = () => {
       ).map((r: any) => ensureId(r));
       setResources(fetchedResources);
 
-      // Transform anomalies
       const fetchedAnomalies = (
         anomaliesRes.success
           ? anomaliesRes.data?.data || anomaliesRes.data || []
@@ -191,19 +188,16 @@ const UserDashboard: React.FC = () => {
       ).map((a: any) => ensureId(a));
       setAnomalies(fetchedAnomalies);
 
-      // Transform AI recommendations
       const fetchedAI = (
         aiRes.success ? aiRes.data?.data || aiRes.data || [] : []
       ).map((rec: any) => ensureId(rec));
       setAiRecommendations(fetchedAI);
 
-      // Transform alerts
       const fetchedAlerts = (
         alertsRes.success ? alertsRes.data?.data || alertsRes.data || [] : []
       ).map((alert: any) => ensureId(alert));
       setAlerts(fetchedAlerts);
 
-      // Build stats from statsRes or fallback
       if (statsRes.success) {
         const s = statsRes.data?.data || statsRes.data;
         setStats([
@@ -237,7 +231,6 @@ const UserDashboard: React.FC = () => {
           },
         ]);
       } else {
-        // Fallback stats
         setStats([
           {
             label: "Total Logs",
@@ -297,6 +290,26 @@ const UserDashboard: React.FC = () => {
       setShowAddResource(false);
       setNewResource({ type: "website", name: "", address: "" });
       showToast("Resource added", "success");
+
+      // Optional: Register this resource in FastAPI log_agent
+      try {
+        await fetch("http://localhost:8000/applications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: addedResource.name,
+            long: addedResource.name,
+            log_file: addedResource.address,
+            cron: "*/5 * * * *",
+            enabled: true,
+          }),
+        });
+      } catch (err) {
+        console.warn(
+          "FastAPI registration failed, logs may still work via address",
+        );
+      }
+
       fetchDashboardData();
     } catch (err) {
       console.error("Add resource error:", err);
@@ -304,9 +317,7 @@ const UserDashboard: React.FC = () => {
     }
   };
 
-  // ✅ UPDATED: Delete resource handler with console log
   const handleDeleteResource = async (id: string) => {
-    console.log("🗑️ Deleting resource:", id);
     if (!window.confirm("Delete this resource?")) return;
     try {
       await viewerApi.deleteResource(id);
@@ -319,7 +330,6 @@ const UserDashboard: React.FC = () => {
     }
   };
 
-  // AI Action
   const handleAIAction = async (rec: AIRecommendation) => {
     setActionInProgress(rec.id);
     try {
@@ -334,44 +344,7 @@ const UserDashboard: React.FC = () => {
     }
   };
 
-  // ✅ UPDATED: Live logs handler with console log
-  const openLiveLogs = async (resource: Resource) => {
-    console.log("🔍 Opening live logs for:", resource.name, "ID:", resource.id);
-    setSelectedResource(resource);
-    setLogsLoading(true);
-    try {
-      const res = await viewerApi.getLiveLogs(resource.id);
-      setLogs(res.data || res || []);
-    } catch (err) {
-      console.error("Failed to load logs", err);
-      showToast("Could not fetch logs", "error");
-    } finally {
-      setLogsLoading(false);
-    }
-    // start polling every 5 seconds
-    if (pollingInterval) clearInterval(pollingInterval);
-    const interval = setInterval(async () => {
-      if (!selectedResource) return;
-      try {
-        const res = await viewerApi.getLiveLogs(selectedResource.id);
-        setLogs(res.data || res || []);
-      } catch (err) {
-        /* ignore */
-      }
-    }, 5000);
-    setPollingInterval(interval);
-  };
-
-  const closeLiveLogs = () => {
-    if (pollingInterval) clearInterval(pollingInterval);
-    setPollingInterval(null);
-    setSelectedResource(null);
-    setLogs([]);
-  };
-
-  // ✅ UPDATED: Analytics handler with console log
   const viewAnalytics = async (resourceId: string) => {
-    console.log("📊 View analytics for resource:", resourceId);
     try {
       const res = await viewerApi.getResourceAnalytics(resourceId);
       setAnalyticsData(res.data || res);
@@ -382,7 +355,6 @@ const UserDashboard: React.FC = () => {
     }
   };
 
-  // Export logs
   const handleExport = async (format = "csv") => {
     setExporting(true);
     try {
@@ -406,6 +378,108 @@ const UserDashboard: React.FC = () => {
       setExporting(false);
     }
   };
+
+  // Simulate log for testing (optional)
+  const simulateLog = async (resource: Resource) => {
+    const apiKey = "test-key";
+    try {
+      const response = await fetch("http://localhost:8000/api/ingest", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": apiKey,
+        },
+        body: JSON.stringify({
+          service: resource.address || resource.name,
+          host: window.location.hostname,
+          source: "simulator",
+          logs: [
+            `[${new Date().toISOString()}] INFO: Test log from ${resource.name}`,
+          ],
+        }),
+      });
+      if (response.ok) {
+        showToast("Test log sent", "success");
+      } else {
+        showToast("Failed to send test log", "error");
+      }
+    } catch (err) {
+      console.error("Simulate log error:", err);
+      showToast("Failed to send test log", "error");
+    }
+  };
+
+  // ==================== WebSocket Live Logs ====================
+  const openLiveLogs = (resource: Resource) => {
+    if (websocket) websocket.close();
+    setSelectedResource(resource);
+    setLogs([]);
+    setLogsLoading(true);
+    setFilterText("");
+    setSeverityFilter([]);
+    setAutoScroll(true);
+    setStreamActive(false);
+
+    const serviceId = encodeURIComponent(resource.address || resource.name);
+    const wsUrl = `ws://localhost:8000/ws/logs/${serviceId}`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log("WebSocket connected for", resource.name);
+      setStreamActive(true);
+      setLogsLoading(false);
+    };
+
+    ws.onmessage = (event) => {
+      const newLogs = JSON.parse(event.data);
+      if (Array.isArray(newLogs)) {
+        setLogs((prev) => [...prev, ...newLogs]);
+        if (autoScroll) scrollToBottom();
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      showToast("Live log connection failed", "error");
+      setStreamActive(false);
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket disconnected");
+      setStreamActive(false);
+    };
+
+    setWebsocket(ws);
+  };
+
+  const closeLiveLogs = () => {
+    if (websocket) {
+      websocket.close();
+      setWebsocket(null);
+    }
+    setSelectedResource(null);
+    setLogs([]);
+  };
+
+  const scrollToBottom = () => {
+    if (autoScroll && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const filteredLogs = logs.filter((log) => {
+    if (
+      filterText &&
+      !log.message.toLowerCase().includes(filterText.toLowerCase())
+    )
+      return false;
+    if (
+      severityFilter.length > 0 &&
+      !severityFilter.includes(log.level?.toLowerCase() || "info")
+    )
+      return false;
+    return true;
+  });
 
   const ResourceIcon = ({ type }: { type: Resource["type"] }) => {
     switch (type) {
@@ -508,9 +582,9 @@ const UserDashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Main Content: Resources + Anomalies + AI */}
+      {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Resources List */}
+        {/* Resources */}
         <div className="lg:col-span-2 bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold text-white">Your Resources</h2>
@@ -572,6 +646,12 @@ const UserDashboard: React.FC = () => {
                       Analytics
                     </button>
                     <button
+                      onClick={() => simulateLog(res)}
+                      className="px-2 py-1 text-xs bg-green-600/50 rounded-lg text-white hover:bg-green-600"
+                    >
+                      Simulate Log
+                    </button>
+                    <button
                       onClick={() => handleDeleteResource(res.id)}
                       className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors"
                     >
@@ -584,7 +664,7 @@ const UserDashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Right Panel: Anomalies + AI */}
+        {/* Right Panel */}
         <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-6 flex flex-col gap-6">
           {/* Anomalies */}
           <div>
@@ -792,14 +872,24 @@ const UserDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Live Logs Modal */}
+      {/* Live Logs Modal (WebSocket) */}
       {selectedResource && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl max-w-4xl w-full max-h-[80vh] flex flex-col border border-gray-700">
+          <div className="bg-gray-900 rounded-2xl max-w-6xl w-full max-h-[85vh] flex flex-col border border-gray-700 shadow-xl">
             <div className="flex justify-between items-center p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">
-                Live Logs – {selectedResource.name}
-              </h3>
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-white">
+                  Live Logs – {selectedResource.name}
+                </h3>
+                <div
+                  className={`flex items-center gap-1 text-xs ${streamActive ? "text-green-400" : "text-red-400"}`}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${streamActive ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
+                  />
+                  <span>{streamActive ? "LIVE" : "Disconnected"}</span>
+                </div>
+              </div>
               <button
                 onClick={closeLiveLogs}
                 className="text-gray-400 hover:text-white"
@@ -807,33 +897,109 @@ const UserDashboard: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            <div className="p-3 border-b border-gray-700 flex flex-wrap gap-2 items-center bg-gray-800/30">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Filter logs..."
+                  value={filterText}
+                  onChange={(e) => setFilterText(e.target.value)}
+                  className="w-full bg-gray-800 text-white pl-8 pr-3 py-1.5 rounded text-sm border border-gray-600 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div className="flex gap-1">
+                {["error", "warn", "info", "debug"].map((sev) => (
+                  <button
+                    key={sev}
+                    onClick={() =>
+                      setSeverityFilter((prev) =>
+                        prev.includes(sev)
+                          ? prev.filter((s) => s !== sev)
+                          : [...prev, sev],
+                      )
+                    }
+                    className={`px-2 py-1 text-xs rounded font-medium ${
+                      severityFilter.includes(sev)
+                        ? `bg-${sev === "error" ? "red" : sev === "warn" ? "yellow" : "blue"}-600 text-white`
+                        : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                    }`}
+                  >
+                    {sev.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setAutoScroll(!autoScroll)}
+                className={`px-2 py-1 text-xs rounded flex items-center gap-1 ${
+                  autoScroll
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-700 text-gray-300"
+                }`}
+              >
+                {autoScroll ? (
+                  <Pause className="w-3 h-3" />
+                ) : (
+                  <Play className="w-3 h-3" />
+                )}
+                {autoScroll ? "Auto-scroll ON" : "Auto-scroll OFF"}
+              </button>
+              <button
+                onClick={scrollToBottom}
+                className="px-2 py-1 text-xs bg-purple-600 rounded flex items-center gap-1"
+              >
+                <ArrowDown className="w-3 h-3" /> Bottom
+              </button>
+              <div className="text-xs text-gray-400 ml-auto">
+                {filteredLogs.length} logs{" "}
+                {filterText || severityFilter.length ? "(filtered)" : ""}
+              </div>
+            </div>
+
             <div className="flex-1 overflow-y-auto p-4 font-mono text-sm">
-              {logsLoading ? (
-                <div className="text-center text-gray-400">Loading logs...</div>
-              ) : logs.length === 0 ? (
+              {logsLoading && filteredLogs.length === 0 ? (
                 <div className="text-center text-gray-400">
-                  No logs available
+                  Connecting to live stream...
+                </div>
+              ) : filteredLogs.length === 0 ? (
+                <div className="text-center text-gray-400">
+                  No logs match the current filters
                 </div>
               ) : (
-                logs.map((log, idx) => (
+                filteredLogs.map((log, idx) => (
                   <div
                     key={log._id || idx}
-                    className="border-b border-gray-800 py-2"
+                    className={`border-b border-gray-800 py-2 ${log.level === "ERROR" ? "bg-red-900/10" : ""}`}
                   >
-                    <span className="text-gray-500">
+                    <span className="text-gray-500 text-xs">
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </span>{" "}
                     <span
-                      className={`${log.severity === "error" ? "text-red-400" : log.severity === "warn" ? "text-yellow-400" : "text-gray-300"}`}
+                      className={`text-sm ${
+                        log.level === "ERROR"
+                          ? "text-red-400"
+                          : log.level === "WARN"
+                            ? "text-yellow-400"
+                            : "text-gray-300"
+                      }`}
                     >
                       {log.message}
                     </span>
+                    {log.service && (
+                      <span className="ml-2 text-xs text-gray-500">
+                        [{log.service}]
+                      </span>
+                    )}
                   </div>
                 ))
               )}
+              <div ref={logsEndRef} />
             </div>
-            <div className="p-3 border-t border-gray-700 text-xs text-gray-500">
-              Auto‑refreshes every 5 seconds
+
+            <div className="p-2 border-t border-gray-700 text-xs text-gray-500 flex justify-between">
+              <span>Streaming via WebSocket</span>
+              <span>New logs appear instantly</span>
             </div>
           </div>
         </div>
