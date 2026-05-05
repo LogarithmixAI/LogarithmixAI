@@ -1,67 +1,57 @@
-// pages/Reports.tsx
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { FileText, Download, Filter, Search, Eye } from "lucide-react";
+import {
+  FileText,
+  Download,
+  Filter,
+  Search,
+  Eye,
+  Plus,
+  Calendar,
+} from "lucide-react";
 import { viewerApi } from "../../../services/api";
+import { useService } from "../../../contexts/ServiceContext";
+import ServiceSelector from "../../../components/ServiceSelector";
+
+interface Report {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  size: string;
+  format: string;
+}
 
 const Reports: React.FC = () => {
-  // ✅ Ensure reports is always an array
-  const [reports, setReports] = useState<any[]>([]); // [9†L23-L24]
+  const { currentService } = useService();
+  const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [exporting, setExporting] = useState(false);
-
-  useEffect(() => {
-    fetchReports();
-  }, [filterType]);
+  const [generating, setGenerating] = useState(false);
 
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const params = filterType !== "all" ? { type: filterType } : {};
+      const params =
+        filterType !== "all"
+          ? { type: filterType, service: currentService }
+          : { service: currentService };
       const response = await viewerApi.getReports(params);
-
-      // ✅ Debug: Log the actual response to see what the API returns
-      console.log("Reports API response:", response);
-
-      // ✅ Ensure we're working with an array
-      let reportsArray: any[] = [];
-
-      // Case 1: Response is already an array
-      if (Array.isArray(response)) {
-        reportsArray = response;
-      }
-      // Case 2: Response is an object with a data property that is an array
-      else if (response && Array.isArray(response.data)) {
-        reportsArray = response.data;
-      }
-      // Case 3: Response is a single object (not an array)
-      else if (
-        response &&
-        typeof response === "object" &&
-        !Array.isArray(response)
-      ) {
-        // Convert single object to array
-        reportsArray = [response];
-        console.warn(
-          "API returned a single object instead of an array. Wrapping in array.",
-        );
-      }
-      // Case 4: Response is null or undefined
-      else {
-        console.warn("API returned invalid data. Defaulting to empty array.");
-        reportsArray = [];
-      }
-
-      setReports(reportsArray);
+      const data = response.data || response;
+      setReports(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch reports:", error);
-      setReports([]); // ✅ Fallback to empty array on error
+      setReports([]);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchReports();
+  }, [filterType, currentService]);
 
   const handleExport = async (reportId?: string) => {
     setExporting(true);
@@ -70,19 +60,33 @@ const Reports: React.FC = () => {
         type: reportId ? "report" : "logs",
         reportId,
         format: "csv",
+        service: currentService,
       });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `report_${new Date().toISOString()}.csv`;
-      document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
-      a.remove();
     } catch (error) {
       console.error("Export failed:", error);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const generateReport = async () => {
+    setGenerating(true);
+    try {
+      await viewerApi.generateReport({
+        service: currentService,
+        type: "weekly",
+      });
+      await fetchReports();
+    } catch (error) {
+      console.error("Generation failed:", error);
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -95,12 +99,7 @@ const Reports: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur-xl opacity-75 animate-pulse"></div>
-          <div className="relative bg-gray-900 p-6 rounded-full">
-            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        </div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -112,18 +111,29 @@ const Reports: React.FC = () => {
           <h1 className="text-3xl font-bold text-white mb-2">Reports</h1>
           <p className="text-blue-200">Access and export system reports</p>
         </div>
-        <button
-          onClick={() => handleExport()}
-          disabled={exporting}
-          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl text-white font-medium flex items-center space-x-2 hover:from-blue-700 hover:to-purple-700 transition-all"
-        >
-          <Download className="w-4 h-4" />
-          <span>{exporting ? "Exporting..." : "Export All Logs"}</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <ServiceSelector />
+          <button
+            onClick={generateReport}
+            disabled={generating}
+            className="px-4 py-2 bg-green-600 rounded-xl text-white font-medium flex items-center gap-2 hover:bg-green-700"
+          >
+            <Plus className="w-4 h-4" />
+            {generating ? "Generating..." : "New Report"}
+          </button>
+          <button
+            onClick={() => handleExport()}
+            disabled={exporting}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl text-white font-medium flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            {exporting ? "Exporting..." : "Export All Logs"}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-4">
+      <div className="bg-gray-800/50 rounded-xl p-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -132,15 +142,15 @@ const Reports: React.FC = () => {
               placeholder="Search reports..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white"
             />
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-gray-400" />
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white"
             >
               <option value="all">All Types</option>
               <option value="Security">Security</option>
@@ -153,10 +163,10 @@ const Reports: React.FC = () => {
       </div>
 
       {/* Reports Table */}
-      <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-700 overflow-hidden">
+      <div className="bg-gray-800/50 rounded-xl overflow-hidden border border-gray-700">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-800/50 border-b border-gray-700">
+            <thead className="bg-gray-800 border-b border-gray-700">
               <tr>
                 <th className="text-left py-4 px-6 text-sm font-medium text-gray-400">
                   Report Name
@@ -189,10 +199,10 @@ const Reports: React.FC = () => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="hover:bg-gray-800/30 transition-colors"
+                    className="hover:bg-gray-800/30"
                   >
                     <td className="py-4 px-6">
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center gap-3">
                         <FileText className="w-5 h-5 text-blue-400" />
                         <span className="text-white font-medium">
                           {report.name}
@@ -209,7 +219,7 @@ const Reports: React.FC = () => {
                     <td className="py-4 px-6 text-right">
                       <button
                         onClick={() => handleExport(report.id)}
-                        className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                        className="p-2 hover:bg-gray-700 rounded-lg"
                         title="Download"
                       >
                         <Download className="w-4 h-4 text-gray-400" />

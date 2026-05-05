@@ -1,4 +1,3 @@
-// pages/Login.tsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -80,7 +79,7 @@ const Login: React.FC = () => {
   const { login, loginWithRole } = useAuth();
   const navigate = useNavigate();
 
-  // UPDATED: All roles now redirect to /app/dashboard
+  // All roles defined for reference (UI selection is commented out)
   const userRoles: UserRole[] = [
     {
       id: "super_admin",
@@ -96,7 +95,7 @@ const Login: React.FC = () => {
         "system_configuration",
       ],
       color: "from-red-500 to-pink-600",
-      defaultRedirect: "/app/dashboard", // CHANGED from "/admin/dashboard"
+      defaultRedirect: "/app/dashboard",
       apiEndpoint: "/api/admin",
     },
     {
@@ -113,7 +112,7 @@ const Login: React.FC = () => {
         "configure_alerts",
       ],
       color: "from-blue-500 to-cyan-600",
-      defaultRedirect: "/app/dashboard", // CHANGED from "/org/dashboard"
+      defaultRedirect: "/app/dashboard",
       apiEndpoint: "/api/org",
     },
     {
@@ -130,7 +129,7 @@ const Login: React.FC = () => {
         "export_reports",
       ],
       color: "from-green-500 to-emerald-600",
-      defaultRedirect: "/app/dashboard", // CHANGED from "/security/dashboard"
+      defaultRedirect: "/app/dashboard",
       apiEndpoint: "/api/security",
     },
     {
@@ -147,7 +146,7 @@ const Login: React.FC = () => {
         "view_metrics",
       ],
       color: "from-purple-500 to-violet-600",
-      defaultRedirect: "/app/dashboard", // CHANGED from "/devops/dashboard"
+      defaultRedirect: "/app/dashboard",
       apiEndpoint: "/api/devops",
     },
     {
@@ -164,7 +163,7 @@ const Login: React.FC = () => {
         "export_analysis",
       ],
       color: "from-indigo-500 to-purple-600",
-      defaultRedirect: "/app/dashboard", // CHANGED from "/ai/dashboard"
+      defaultRedirect: "/app/dashboard",
       apiEndpoint: "/api/ai",
     },
     {
@@ -180,12 +179,12 @@ const Login: React.FC = () => {
         "no_write_access",
       ],
       color: "from-gray-500 to-gray-600",
-      defaultRedirect: "/app/dashboard", // CHANGED from "/viewer/dashboard"
+      defaultRedirect: "/app/dashboard",
       apiEndpoint: "/api/viewer",
     },
   ];
 
-  // Demo credentials for testing
+  // Demo credentials (kept for potential testing, but not used in UI)
   const demoCredentials = {
     super_admin: { email: "admin@logsentinel.ai", password: "Admin@2024" },
     org_admin: { email: "orgadmin@acme.com", password: "OrgAdmin@2024" },
@@ -224,7 +223,7 @@ const Login: React.FC = () => {
     fetchOrganizations();
   }, []);
 
-  // Auto-detect organization from email domain
+  // Auto-detect organization from email domain (optional, can keep)
   useEffect(() => {
     if (formData.email.includes("@")) {
       const domain = formData.email.split("@")[1];
@@ -239,7 +238,6 @@ const Login: React.FC = () => {
   const fetchOrganizations = async () => {
     setLoadingOrgs(true);
     try {
-      // Try to fetch from API, fallback to sample data
       const response = await fetch("/api/public/organizations");
       if (response.ok) {
         const data = await response.json();
@@ -265,6 +263,7 @@ const Login: React.FC = () => {
     setError("");
   };
 
+  // UPDATED: Simplified login – no role/organization selection
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -277,24 +276,10 @@ const Login: React.FC = () => {
         return;
       }
 
-      console.log("🔐 Attempting login with:", {
-        email: formData.email,
-        role: selectedRole,
-        org: selectedOrg,
-      });
+      console.log("🔐 Attempting login with:", { email: formData.email });
 
-      let result;
-
-      if (selectedRole) {
-        result = await loginWithRole(
-          formData.email,
-          formData.password,
-          selectedRole,
-          selectedOrg || undefined,
-        );
-      } else {
-        result = await login(formData.email, formData.password);
-      }
+      // Call login without role/organization – backend will determine role from user record
+      const result = await login(formData.email, formData.password);
 
       console.log("📥 Login result:", result);
 
@@ -309,8 +294,7 @@ const Login: React.FC = () => {
 
         toast.success("Login successful! Redirecting...");
 
-        // UPDATED: Always redirect to /app/dashboard
-        // Dashboard.tsx will handle role-based rendering
+        // Always redirect to /app/dashboard – dashboard will handle role-based content
         navigate("/app/dashboard");
       } else {
         setError(result.message || "Invalid email or password");
@@ -327,6 +311,7 @@ const Login: React.FC = () => {
     }
   };
 
+  // Keep demo login function for possible testing, but not exposed in UI
   const handleRoleDemoLogin = async (roleId: string) => {
     const credentials = demoCredentials[roleId as keyof typeof demoCredentials];
     if (!credentials) return;
@@ -352,7 +337,6 @@ const Login: React.FC = () => {
 
       if (result.success) {
         toast.success(`Demo login successful as ${roleId}!`);
-        // UPDATED: Always redirect to /app/dashboard
         navigate("/app/dashboard");
       } else {
         setError(`Demo login failed for ${roleId} role`);
@@ -495,89 +479,81 @@ const Login: React.FC = () => {
             </AnimatePresence>
 
             {!isSignupMode ? (
-              /* LOGIN FORM */
+              /* LOGIN FORM - Role selection removed */
               <>
-                {/* Role Selection */}
-                {!selectedRole && (
-                  <div className="mb-6">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-semibold text-white mb-2">
-                        Select Your Role
-                      </h3>
-                      <p className="text-blue-200 text-sm">
-                        Choose the role that matches your responsibilities
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {userRoles.map((role) => (
-                        <button
-                          key={role.id}
-                          onClick={() => handleRoleSelect(role.id)}
-                          className={`p-3 rounded-xl border transition-all hover:scale-[1.02] ${
-                            selectedRole === role.id
-                              ? `border-transparent bg-gradient-to-r ${role.color} bg-opacity-20`
-                              : "bg-gray-800/50 border-gray-700 hover:bg-gray-800"
-                          }`}
-                        >
-                          <div className="flex flex-col items-center text-center space-y-2">
-                            <div
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                selectedRole === role.id
-                                  ? `bg-gradient-to-r ${role.color}`
-                                  : "bg-gray-700"
-                              }`}
-                            >
-                              {role.icon}
-                            </div>
-                            <p className="text-white text-xs font-medium">
-                              {role.name}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                {/* ============================================================ */}
+                {/* ROLE SELECTION UI - COMMENTED OUT (Auto-detect from backend) */}
+                {/* ============================================================ */}
+                {/* 
+                <div className="mb-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-white mb-2">
+                      Select Your Role
+                    </h3>
+                    <p className="text-blue-200 text-sm">
+                      Choose the role that matches your responsibilities
+                    </p>
                   </div>
-                )}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {userRoles.map((role) => (
+                      <button
+                        key={role.id}
+                        onClick={() => handleRoleSelect(role.id)}
+                        className={`p-3 rounded-xl border transition-all hover:scale-[1.02] ${
+                          selectedRole === role.id
+                            ? `border-transparent bg-gradient-to-r ${role.color} bg-opacity-20`
+                            : "bg-gray-800/50 border-gray-700 hover:bg-gray-800"
+                        }`}
+                      >
+                        <div className="flex flex-col items-center text-center space-y-2">
+                          <div
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                              selectedRole === role.id
+                                ? `bg-gradient-to-r ${role.color}`
+                                : "bg-gray-700"
+                            }`}
+                          >
+                            {role.icon}
+                          </div>
+                          <p className="text-white text-xs font-medium">
+                            {role.name}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                */}
 
-                {/* Selected Role Display */}
+                {/* Selected Role Display - COMMENTED OUT */}
+                {/* 
                 {selectedRole && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="mb-6"
                   >
-                    <div
-                      className={`p-4 rounded-xl bg-gradient-to-r ${getSelectedRole()?.color} bg-opacity-10 border border-white/10`}
-                    >
+                    <div className={`p-4 rounded-xl bg-gradient-to-r ${getSelectedRole()?.color} bg-opacity-10 border border-white/10`}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          <div
-                            className={`w-10 h-10 rounded-lg bg-gradient-to-r ${getSelectedRole()?.color} flex items-center justify-center`}
-                          >
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-r ${getSelectedRole()?.color} flex items-center justify-center`}>
                             {getSelectedRole()?.icon}
                           </div>
                           <div>
-                            <p className="text-white font-semibold">
-                              Selected Role
-                            </p>
-                            <p className="text-blue-200 text-sm">
-                              {getSelectedRole()?.name}
-                            </p>
+                            <p className="text-white font-semibold">Selected Role</p>
+                            <p className="text-blue-200 text-sm">{getSelectedRole()?.name}</p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => setSelectedRole("")}
-                          className="text-gray-400 hover:text-white transition-colors"
-                        >
+                        <button onClick={() => setSelectedRole("")} className="text-gray-400 hover:text-white transition-colors">
                           ✕
                         </button>
                       </div>
                     </div>
                   </motion.div>
                 )}
+                */}
 
-                {/* Login Form */}
+                {/* Standard Login Form */}
                 <form onSubmit={handleLoginSubmit} className="space-y-6">
                   <div className="space-y-2">
                     <label
@@ -692,7 +668,8 @@ const Login: React.FC = () => {
                   </button>
                 </form>
 
-                {/* Demo Login Button */}
+                {/* Demo Login Button - COMMENTED OUT */}
+                {/* 
                 {selectedRole && (
                   <button
                     type="button"
@@ -704,6 +681,7 @@ const Login: React.FC = () => {
                     <span>Try Demo Account for {getSelectedRole()?.name}</span>
                   </button>
                 )}
+                */}
 
                 {/* Sign Up Link */}
                 <div className="mt-8 text-center">
@@ -719,9 +697,8 @@ const Login: React.FC = () => {
                 </div>
               </>
             ) : (
-              /* SIGN UP PROMPT - Keep as is */
+              /* SIGN UP MODE – unchanged */
               <div className="space-y-6">
-                {/* ... Sign up content remains the same ... */}
                 <div className="text-center">
                   <h2 className="text-2xl font-bold text-white mb-4">
                     Join LogSentinel AI

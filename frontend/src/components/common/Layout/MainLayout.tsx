@@ -1,4 +1,4 @@
-// components/common/Layout/MainLayout.tsx
+// src/components/common/Layout/MainLayout.tsx
 import React, { useState, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
@@ -41,7 +41,7 @@ const MainLayout: React.FC = () => {
           }`}
         >
           <div className="p-4 sm:p-6">
-            <Outlet />
+            <Outlet /> {/* Child routes render here */}
           </div>
         </main>
       </div>

@@ -1,5 +1,5 @@
 // src/pages/dashboards/user/UserDashboard.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Eye,
   BarChart3,
@@ -18,15 +18,12 @@ import {
   Zap,
   Brain,
   CheckCircle,
-  XCircle,
-  LogOut,
-  TrendingUp,
   Bell,
   X,
   Search,
   Pause,
   Play,
-  ArrowDown,
+  ArrowUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -81,7 +78,7 @@ interface LogEntry {
   _id: string;
   timestamp: string;
   message: string;
-  level?: string; // from FastAPI logs (ERROR, WARN, INFO, DEBUG)
+  level?: string;
   service?: string;
   source?: string;
 }
@@ -123,18 +120,21 @@ const UserDashboard: React.FC = () => {
     type: "success" | "error";
   } | null>(null);
 
-  // Live logs modal state (WebSocket version)
+  // Live logs polling state
   const [selectedResource, setSelectedResource] = useState<Resource | null>(
     null,
   );
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [websocket, setWebsocket] = useState<WebSocket | null>(null);
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
+    null,
+  );
   const [filterText, setFilterText] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const [streamActive, setStreamActive] = useState(false);
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef(autoScroll);
 
   // Alerts & analytics
   const [showAlerts, setShowAlerts] = useState(false);
@@ -157,11 +157,12 @@ const UserDashboard: React.FC = () => {
     }
   };
 
-  // Fetch dashboard data
+  // Fetch dashboard data – now includes timeRange parameter
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const params = { service: currentService || undefined };
+      // ✅ Include timeRange in the request params
+      const params = { service: currentService || undefined, timeRange };
       const [resourcesRes, anomaliesRes, aiRes, alertsRes, statsRes] =
         await Promise.all([
           safeFetch(viewerApi.getResources(params), "getResources"),
@@ -270,11 +271,17 @@ const UserDashboard: React.FC = () => {
     }
   };
 
+  // ✅ Re‑fetch data when currentService OR timeRange changes
   useEffect(() => {
     fetchDashboardData();
-  }, [currentService]);
+  }, [currentService, timeRange]);
 
-  // Resource management
+  // Sync autoScroll ref
+  useEffect(() => {
+    autoScrollRef.current = autoScroll;
+  }, [autoScroll]);
+
+  // Resource management (unchanged)
   const handleAddResource = async () => {
     if (!newResource.name || !newResource.address) {
       showToast("Name and address required", "error");
@@ -291,7 +298,7 @@ const UserDashboard: React.FC = () => {
       setNewResource({ type: "website", name: "", address: "" });
       showToast("Resource added", "success");
 
-      // Optional: Register this resource in FastAPI log_agent
+      // Optional: Register in FastAPI (non‑blocking)
       try {
         await fetch("http://localhost:8000/applications", {
           method: "POST",
@@ -305,9 +312,7 @@ const UserDashboard: React.FC = () => {
           }),
         });
       } catch (err) {
-        console.warn(
-          "FastAPI registration failed, logs may still work via address",
-        );
+        console.warn("FastAPI registration optional");
       }
 
       fetchDashboardData();
@@ -379,7 +384,7 @@ const UserDashboard: React.FC = () => {
     }
   };
 
-  // Simulate log for testing (optional)
+  // Simulate log for testing
   const simulateLog = async (resource: Resource) => {
     const apiKey = "test-key";
     try {
@@ -409,61 +414,58 @@ const UserDashboard: React.FC = () => {
     }
   };
 
-  // ==================== WebSocket Live Logs ====================
-  const openLiveLogs = (resource: Resource) => {
-    if (websocket) websocket.close();
-    setSelectedResource(resource);
-    setLogs([]);
-    setLogsLoading(true);
-    setFilterText("");
-    setSeverityFilter([]);
-    setAutoScroll(true);
-    setStreamActive(false);
-
-    const serviceId = encodeURIComponent(resource.address || resource.name);
-    const wsUrl = `ws://localhost:8000/ws/logs/${serviceId}`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-      console.log("WebSocket connected for", resource.name);
+  // ==================== POLLING REAL‑TIME LOGS ====================
+  const openLiveLogs = useCallback(
+    async (resource: Resource) => {
+      if (pollingInterval) clearInterval(pollingInterval);
+      setSelectedResource(resource);
+      setLogs([]);
+      setLogsLoading(true);
+      setFilterText("");
+      setSeverityFilter([]);
+      setAutoScroll(true);
       setStreamActive(true);
-      setLogsLoading(false);
-    };
 
-    ws.onmessage = (event) => {
-      const newLogs = JSON.parse(event.data);
-      if (Array.isArray(newLogs)) {
-        setLogs((prev) => [...prev, ...newLogs]);
-        if (autoScroll) scrollToBottom();
-      }
-    };
+      const serviceId = encodeURIComponent(resource.address || resource.name);
+      const fetchLogs = async () => {
+        try {
+          const response = await fetch(
+            `http://localhost:8000/api/logs/${serviceId}`,
+          );
+          if (response.ok) {
+            const data = await response.json();
+            let logsArray = data.logs || [];
+            setLogs(logsArray);
+            setLogsLoading(false);
+            if (autoScrollRef.current && logsContainerRef.current) {
+              logsContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+            }
+          } else {
+            console.error("Polling failed with status:", response.status);
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      };
 
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      showToast("Live log connection failed", "error");
-      setStreamActive(false);
-    };
-
-    ws.onclose = () => {
-      console.log("WebSocket disconnected");
-      setStreamActive(false);
-    };
-
-    setWebsocket(ws);
-  };
+      await fetchLogs();
+      const interval = setInterval(fetchLogs, 1000);
+      setPollingInterval(interval);
+    },
+    [pollingInterval],
+  );
 
   const closeLiveLogs = () => {
-    if (websocket) {
-      websocket.close();
-      setWebsocket(null);
-    }
+    if (pollingInterval) clearInterval(pollingInterval);
+    setPollingInterval(null);
     setSelectedResource(null);
     setLogs([]);
+    setStreamActive(false);
   };
 
-  const scrollToBottom = () => {
-    if (autoScroll && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+  const scrollToTop = () => {
+    if (logsContainerRef.current) {
+      logsContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -800,7 +802,7 @@ const UserDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* ==================== MODALS ==================== */}
 
       {/* Add Resource Modal */}
       {showAddResource && (
@@ -872,7 +874,7 @@ const UserDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Live Logs Modal (WebSocket) */}
+      {/* Live Logs Modal with Polling */}
       {selectedResource && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 rounded-2xl max-w-6xl w-full max-h-[85vh] flex flex-col border border-gray-700 shadow-xl">
@@ -887,7 +889,7 @@ const UserDashboard: React.FC = () => {
                   <div
                     className={`w-2 h-2 rounded-full ${streamActive ? "bg-green-400 animate-pulse" : "bg-red-400"}`}
                   />
-                  <span>{streamActive ? "LIVE" : "Disconnected"}</span>
+                  <span>{streamActive ? "Polling (2s)" : "Stopped"}</span>
                 </div>
               </div>
               <button
@@ -943,13 +945,13 @@ const UserDashboard: React.FC = () => {
                 ) : (
                   <Play className="w-3 h-3" />
                 )}
-                {autoScroll ? "Auto-scroll ON" : "Auto-scroll OFF"}
+                {autoScroll ? "Auto‑scroll (newest)" : "Manual"}
               </button>
               <button
-                onClick={scrollToBottom}
+                onClick={scrollToTop}
                 className="px-2 py-1 text-xs bg-purple-600 rounded flex items-center gap-1"
               >
-                <ArrowDown className="w-3 h-3" /> Bottom
+                <ArrowUp className="w-3 h-3" /> Top
               </button>
               <div className="text-xs text-gray-400 ml-auto">
                 {filteredLogs.length} logs{" "}
@@ -957,11 +959,13 @@ const UserDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 font-mono text-sm">
+            <div
+              ref={logsContainerRef}
+              className="flex-1 overflow-y-auto p-4 font-mono text-sm"
+              style={{ display: "flex", flexDirection: "column" }}
+            >
               {logsLoading && filteredLogs.length === 0 ? (
-                <div className="text-center text-gray-400">
-                  Connecting to live stream...
-                </div>
+                <div className="text-center text-gray-400">Loading logs...</div>
               ) : filteredLogs.length === 0 ? (
                 <div className="text-center text-gray-400">
                   No logs match the current filters
@@ -994,12 +998,11 @@ const UserDashboard: React.FC = () => {
                   </div>
                 ))
               )}
-              <div ref={logsEndRef} />
             </div>
 
             <div className="p-2 border-t border-gray-700 text-xs text-gray-500 flex justify-between">
-              <span>Streaming via WebSocket</span>
-              <span>New logs appear instantly</span>
+              <span>Auto‑refresh every 2 seconds</span>
+              <span>New logs appear without page refresh</span>
             </div>
           </div>
         </div>
