@@ -73,8 +73,6 @@ const Login: React.FC = () => {
   const [showOrgSelector, setShowOrgSelector] = useState<boolean>(false);
   const [showRoleSelector, setShowRoleSelector] = useState<boolean>(false);
   const [isSignupMode, setIsSignupMode] = useState<boolean>(false);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [loadingOrgs, setLoadingOrgs] = useState<boolean>(false);
 
   const { login, loginWithRole } = useAuth();
   const navigate = useNavigate();
@@ -194,7 +192,6 @@ const Login: React.FC = () => {
     viewer: { email: "viewer@acme.com", password: "Viewer@2024" },
   };
 
-  // Sample organizations data
   const sampleOrganizations: Organization[] = [
     { id: "acme", name: "Acme Corporation", domain: "acme.com", logo: "🏢" },
     {
@@ -402,13 +399,16 @@ const Login: React.FC = () => {
     transition: { duration: 0.6 },
   };
 
+  const toggleSignupMode = () => {
+    setIsSignupMode(!isSignupMode);
+    setError("");
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-blue-900 p-4 relative overflow-hidden">
-      {/* Animated background blobs */}
       <div className="absolute inset-0">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
         <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-1/4 left-1/3 w-96 h-96 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
 
       <div className="relative w-full max-w-4xl">
@@ -442,41 +442,29 @@ const Login: React.FC = () => {
               <div className="inline-flex items-center bg-gray-800/50 rounded-full p-1 mb-8">
                 <button
                   onClick={() => setIsSignupMode(false)}
-                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                    !isSignupMode
-                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-                      : "text-gray-400 hover:text-white"
-                  }`}
+                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${!isSignupMode ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
                 >
                   Sign In
                 </button>
                 <button
                   onClick={() => setIsSignupMode(true)}
-                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                    isSignupMode
-                      ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-                      : "text-gray-400 hover:text-white"
-                  }`}
+                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${isSignupMode ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white" : "text-gray-400 hover:text-white"}`}
                 >
                   Sign Up
                 </button>
               </div>
             </div>
 
-            {/* Error Message */}
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex items-center space-x-3 p-4 rounded-xl bg-red-900/30 border border-red-800 text-red-200 mb-6"
-                >
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <span className="text-sm">{error}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center space-x-3 p-4 rounded-xl bg-red-900/30 border border-red-800 text-red-200 mb-6"
+              >
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm">{error}</span>
+              </motion.div>
+            )}
 
             {!isSignupMode ? (
               /* LOGIN FORM - Role selection removed */
@@ -575,7 +563,6 @@ const Login: React.FC = () => {
                         onChange={handleInputChange}
                         className="w-full pl-10 pr-4 py-3 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="you@company.com"
-                        autoComplete="email"
                       />
                     </div>
                   </div>
@@ -608,7 +595,6 @@ const Login: React.FC = () => {
                         onChange={handleInputChange}
                         className="w-full pl-10 pr-12 py-3 bg-gray-900/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="••••••••"
-                        autoComplete="current-password"
                       />
                       <button
                         type="button"
@@ -624,7 +610,6 @@ const Login: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Remember Me */}
                   <div className="flex items-center">
                     <input
                       id="remember-me"
@@ -641,7 +626,6 @@ const Login: React.FC = () => {
                     </label>
                   </div>
 
-                  {/* Submit Button */}
                   <button
                     type="submit"
                     disabled={loading}

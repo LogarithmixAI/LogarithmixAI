@@ -1,0 +1,12 @@
+# Backend / SDK
+Agent-sdk_v1/ @LogarithmixAI/AI-expert_team
+Agent-sdk_v2/ @LogarithmixAI/AI-expert_team
+
+# Frontend
+frontend/ @LogarithmixAI/Frontend_team
+
+# Backend / SDK
+backend/ @LogarithmixAI/backend_team
+
+# Docs
+docs/ @LogarithmixAI/docs_team
