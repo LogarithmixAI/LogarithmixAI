@@ -6,8 +6,8 @@ import { ServiceProvider } from "./contexts/ServiceContext";
 import MainLayout from "./components/common/Layout/MainLayout";
 import Homepage from "./pages/Homepage";
 import Dashboard from "./pages/Dashboard";
-import Logs from "./pages/Logs";
-import Analytics from "./pages/Analytics";
+import Logs from "./pages/dashboards/user/Logs";
+import Analytics from "./pages/dashboards/user/Analytics";
 import Alerts from "./pages/dashboards/user/Alerts";
 import AIInsights from "./pages/AIInsights";
 import Settings from "./pages/Settings";
@@ -52,7 +52,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
-    // Show loading spinner – do not render children
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-blue-900">
         <div className="text-center">
@@ -71,7 +70,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthenticated) {
-    // Redirect to login – do not render children
     return <Navigate to="/login" replace />;
   }
 
@@ -79,7 +77,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/app/dashboard" replace />;
   }
 
-  // Only render children (and ServiceProvider) when authenticated
   return <ServiceProvider>{children}</ServiceProvider>;
 };
 
@@ -88,14 +85,14 @@ const App: React.FC = () => {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public routes – no ServiceProvider needed */}
+          {/* Public routes */}
           <Route path="/" element={<Homepage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Protected app routes – ServiceProvider is injected inside ProtectedRoute */}
+          {/* Protected app routes – all under /app */}
           <Route
             path="/app"
             element={
@@ -115,6 +112,7 @@ const App: React.FC = () => {
                     "org_admin",
                     "security_analyst",
                     "devops_engineer",
+                    "viewer",
                   ]}
                 >
                   <Logs />
@@ -146,6 +144,7 @@ const App: React.FC = () => {
                     "org_admin",
                     "security_analyst",
                     "devops_engineer",
+                    "viewer",
                   ]}
                 >
                   <Alerts />
@@ -169,7 +168,9 @@ const App: React.FC = () => {
             <Route
               path="settings"
               element={
-                <ProtectedRoute allowedRoles={["super_admin", "org_admin"]}>
+                <ProtectedRoute
+                  allowedRoles={["super_admin", "org_admin", "viewer"]}
+                >
                   <Settings />
                 </ProtectedRoute>
               }
@@ -202,7 +203,7 @@ const App: React.FC = () => {
               element={<Navigate to="/app/dashboard" replace />}
             />
 
-            {/* Role-specific routes (same pattern as above) */}
+            {/* Role‑specific routes (same as before) */}
             <Route
               path="team"
               element={
@@ -331,7 +332,7 @@ const App: React.FC = () => {
             />
           </Route>
 
-          {/* Super Admin routes (also wrapped with ProtectedRoute + ServiceProvider) */}
+          {/* Super Admin routes (separate area for global admin) */}
           <Route
             path="/admin"
             element={

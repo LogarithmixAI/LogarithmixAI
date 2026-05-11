@@ -1,8 +1,7 @@
-// services/api/client.js
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: '/api',   // ✅ Change to relative URL (depends on Vite proxy)
+  baseURL: '/api',   
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
   timeout: 30000,

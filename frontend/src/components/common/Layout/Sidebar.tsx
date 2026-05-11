@@ -1,29 +1,31 @@
-// components/common/Layout/Sidebar.tsx
+// src/components/common/Layout/Sidebar.tsx
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { useAuth } from "../../../contexts/AuthContext";
-import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../../../contexts/AuthContext"; // ✅ fixed path
 import {
   LayoutDashboard,
   Activity,
-  AlertTriangle,
   BarChart3,
+  Bell,
+  FileText,
   Settings,
   Users,
   Shield,
-  Brain,
-  FileText,
-  Globe,
-  Bell,
-  TrendingUp,
-  Cpu,
   Server,
-  Lock,
-  Eye,
-  Code,
+  Container,
+  Brain,
+  AlertTriangle,
   Key,
-  X,
+  Globe,
+  Network,
+  Rocket,
+  GitBranch,
   Database,
+  Lock,
+  Building2,
+  UserCog,
+  HardDrive,
+  CreditCard,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -32,157 +34,259 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const role = user?.role || "viewer";
 
-  const getMenuItems = () => {
-    const baseItems = [
-      { path: "/app/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-      { path: "/app/logs", icon: Activity, label: "Live Logs" },
-      { path: "/app/analytics", icon: BarChart3, label: "Analytics" },
-      { path: "/app/alerts", icon: AlertTriangle, label: "Alerts" },
-    ];
+  const canSeeDevOps = ["devops_engineer", "super_admin"].includes(role);
+  const canSeeSecurity = ["security_analyst", "super_admin"].includes(role);
+  const canSeeAIAnalyst = ["ai_analyst", "super_admin"].includes(role);
+  const canSeeAdmin = ["org_admin", "super_admin"].includes(role);
+  const canSeeSuperAdmin = role === "super_admin";
 
-    const roleSpecificItems: Record<string, any[]> = {
-      super_admin: [
-        { path: "/admin/organizations", icon: Globe, label: "Organizations" },
-        { path: "/admin/users", icon: Users, label: "Users" },
-        { path: "/admin/system", icon: Server, label: "System" },
-        { path: "/admin/billing", icon: Database, label: "Billing" },
-        { path: "/app/ai-insights", icon: Brain, label: "AI Insights" },
-        { path: "/app/settings", icon: Settings, label: "Settings" },
-      ],
-      org_admin: [
-        { path: "/app/team", icon: Users, label: "Team" },
-        { path: "/app/integrations", icon: Globe, label: "Integrations" },
-        { path: "/app/api-keys", icon: Key, label: "API Keys" },
-        { path: "/app/ai-insights", icon: Brain, label: "AI Insights" },
-        { path: "/app/settings", icon: Settings, label: "Settings" },
-      ],
-      security_analyst: [
-        { path: "/app/threats", icon: Shield, label: "Threats" },
-        { path: "/app/incidents", icon: AlertTriangle, label: "Incidents" },
-        { path: "/app/compliance", icon: Lock, label: "Compliance" },
-        { path: "/app/reports", icon: FileText, label: "Reports" },
-        { path: "/app/ai-insights", icon: Brain, label: "AI Insights" },
-      ],
-      devops_engineer: [
-        { path: "/app/services", icon: Server, label: "Services" },
-        { path: "/app/containers", icon: Cpu, label: "Containers" },
-        { path: "/app/network", icon: Globe, label: "Network" },
-        { path: "/app/deployments", icon: Code, label: "Deployments" },
-      ],
-      ai_analyst: [
-        { path: "/app/models", icon: Brain, label: "Models" },
-        { path: "/app/insights", icon: TrendingUp, label: "Insights" },
-        { path: "/app/training", icon: Cpu, label: "Training" },
-        { path: "/app/anomalies", icon: Activity, label: "Anomalies" },
-      ],
-      viewer: [
-        { path: "/app/reports", icon: FileText, label: "Reports" },
-        { path: "/app/dashboards", icon: LayoutDashboard, label: "Dashboards" },
-      ],
-    };
+  const mainNavItems = [
+    { path: "/app/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { path: "/app/logs", icon: Activity, label: "Live Logs" },
+    { path: "/app/analytics", icon: BarChart3, label: "Analytics" },
+    { path: "/app/alerts", icon: Bell, label: "Alerts" },
+    { path: "/app/reports", icon: FileText, label: "Reports" },
+    { path: "/app/ai-insights", icon: Brain, label: "AI Insights" },
+    { path: "/app/settings", icon: Settings, label: "Settings" },
+  ];
 
-    return [...baseItems, ...(roleSpecificItems[user?.role || "viewer"] || [])];
+  const devopsItems = [
+    { path: "/app/services", icon: Server, label: "Services" },
+    { path: "/app/containers", icon: Container, label: "Containers" },
+    { path: "/app/network", icon: Network, label: "Network" },
+    { path: "/app/deployments", icon: Rocket, label: "Deployments" },
+  ];
+
+  const securityItems = [
+    { path: "/app/threats", icon: Shield, label: "Threats" },
+    { path: "/app/incidents", icon: AlertTriangle, label: "Incidents" },
+    { path: "/app/compliance", icon: Lock, label: "Compliance" },
+  ];
+
+  const aiItems = [
+    { path: "/app/models", icon: Database, label: "Models" },
+    { path: "/app/insights", icon: Brain, label: "Insights" },
+    { path: "/app/training", icon: GitBranch, label: "Training" },
+    { path: "/app/anomalies", icon: AlertTriangle, label: "Anomalies" },
+  ];
+
+  const adminItems = [
+    { path: "/app/team", icon: Users, label: "Team" },
+    { path: "/app/integrations", icon: Globe, label: "Integrations" },
+    { path: "/app/api-keys", icon: Key, label: "API Keys" },
+  ];
+
+  const superAdminItems = [
+    { path: "/admin/organizations", icon: Building2, label: "Organizations" },
+    { path: "/admin/users", icon: UserCog, label: "Users" },
+    { path: "/admin/system", icon: HardDrive, label: "System" },
+    { path: "/admin/billing", icon: CreditCard, label: "Billing" },
+  ];
+
+  const handleLinkClick = () => {
+    if (window.innerWidth < 1024) onClose();
   };
 
-  const menuItems = getMenuItems();
-
-  const handleMenuItemClick = () => {
-    if (window.innerWidth < 1024) {
-      onClose();
-    }
-  };
+  if (loading) return null;
 
   return (
     <>
-      {/* Mobile overlay */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
-          />
-        )}
-      </AnimatePresence>
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      {/* Sidebar */}
-      <motion.aside
-        initial={{ x: -300 }}
-        animate={{ x: isOpen ? 0 : -300 }}
-        transition={{ type: "spring", damping: 20 }}
-        className={`fixed top-0 left-0 h-full w-64 bg-gradient-to-b from-gray-900 to-gray-800 border-r border-gray-700 z-50 lg:translate-x-0 ${
+      <aside
+        className={`fixed top-0 left-0 z-50 h-full w-64 bg-gray-900/95 backdrop-blur-sm border-r border-gray-700 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:transform-none lg:top-16 lg:h-[calc(100vh-4rem)]`}
+        }`}
       >
-        <div className="flex flex-col h-full">
-          {/* Close button - mobile only */}
-          <button
-            onClick={onClose}
-            className="lg:hidden absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-400" />
-          </button>
+        <div className="p-6 border-b border-gray-700">
+          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            LogSentinel AI
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">Observability Platform</p>
+        </div>
 
-          {/* User info - mobile only */}
-          <div className="lg:hidden p-4 border-b border-gray-700">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                <span className="text-white font-bold">
-                  {user?.name?.charAt(0) || "U"}
-                </span>
+        <nav className="flex-1 overflow-y-auto py-4 h-[calc(100vh-80px)]">
+          <div className="px-3 space-y-1">
+            {mainNavItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end
+                onClick={handleLinkClick}
+                className={({ isActive }) =>
+                  `flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                    isActive
+                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border-l-2 border-blue-500"
+                      : "text-gray-300 hover:bg-gray-800/50 hover:text-white"
+                  }`
+                }
+              >
+                <item.icon className="w-5 h-5" />
+                <span className="text-sm font-medium">{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+
+          {canSeeDevOps && (
+            <div className="mt-6">
+              <div className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                DevOps
               </div>
-              <div>
-                <p className="text-sm font-medium text-white">{user?.name}</p>
-                <p className="text-xs text-gray-400">{user?.email}</p>
+              <div className="mt-2 px-3 space-y-1">
+                {devopsItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={handleLinkClick}
+                    className={({ isActive }) =>
+                      `flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                        isActive
+                          ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white"
+                          : "text-gray-300 hover:bg-gray-800/50 hover:text-white"
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span className="text-sm">{item.label}</span>
+                  </NavLink>
+                ))}
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Menu items */}
-          <div className="flex-1 overflow-y-auto py-4">
-            <nav className="px-2 space-y-1">
-              {menuItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  end={
-                    item.path === "/app/dashboard" ||
-                    item.path === "/admin/dashboard"
-                  }
-                  onClick={handleMenuItemClick}
-                  className={({ isActive }) =>
-                    `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                      isActive
-                        ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30"
-                        : "text-gray-400 hover:text-white hover:bg-gray-700/50"
-                    }`
-                  }
-                >
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-sm font-medium">{item.label}</span>
-                </NavLink>
-              ))}
-            </nav>
-          </div>
+          {canSeeSecurity && (
+            <div className="mt-6">
+              <div className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Security
+              </div>
+              <div className="mt-2 px-3 space-y-1">
+                {securityItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={handleLinkClick}
+                    className={({ isActive }) =>
+                      `flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                        isActive
+                          ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white"
+                          : "text-gray-300 hover:bg-gray-800/50 hover:text-white"
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span className="text-sm">{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* Footer */}
-          <div className="p-4 border-t border-gray-700">
-            <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl p-3">
-              <p className="text-xs text-gray-400 mb-2">Need help?</p>
-              <a
-                href="/docs"
-                className="block w-full text-xs text-blue-400 hover:text-blue-300 transition-colors text-center"
-              >
-                View Documentation
-              </a>
+          {canSeeAIAnalyst && (
+            <div className="mt-6">
+              <div className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                AI Analyst
+              </div>
+              <div className="mt-2 px-3 space-y-1">
+                {aiItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={handleLinkClick}
+                    className={({ isActive }) =>
+                      `flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                        isActive
+                          ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white"
+                          : "text-gray-300 hover:bg-gray-800/50 hover:text-white"
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span className="text-sm">{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {canSeeAdmin && (
+            <div className="mt-6">
+              <div className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Admin
+              </div>
+              <div className="mt-2 px-3 space-y-1">
+                {adminItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={handleLinkClick}
+                    className={({ isActive }) =>
+                      `flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                        isActive
+                          ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white"
+                          : "text-gray-300 hover:bg-gray-800/50 hover:text-white"
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span className="text-sm">{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {canSeeSuperAdmin && (
+            <div className="mt-6">
+              <div className="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Super Admin
+              </div>
+              <div className="mt-2 px-3 space-y-1">
+                {superAdminItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={handleLinkClick}
+                    className={({ isActive }) =>
+                      `flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                        isActive
+                          ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white"
+                          : "text-gray-300 hover:bg-gray-800/50 hover:text-white"
+                      }`
+                    }
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span className="text-sm">{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )}
+        </nav>
+
+        <div className="p-4 border-t border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+              <span className="text-white text-sm font-bold uppercase">
+                {user?.name?.[0] || user?.email?.[0] || "U"}
+              </span>
+            </div>
+            <div className="flex-1">
+              <p className="text-white text-sm font-medium">
+                {user?.name || user?.email?.split("@")[0] || "User"}
+              </p>
+              <p className="text-gray-400 text-xs capitalize">{role}</p>
             </div>
           </div>
         </div>
-      </motion.aside>
+      </aside>
     </>
   );
 };

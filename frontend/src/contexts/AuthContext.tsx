@@ -1,4 +1,3 @@
-// contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { toast } from "react-hot-toast";
 
@@ -28,14 +27,6 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
-    role?: string,
-    organization?: string,
-  ) => Promise<{ success: boolean; message?: string }>;
-  loginWithRole: (
-    email: string,
-    password: string,
-    role: string,
-    organization?: string,
   ) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   signup: (
@@ -56,15 +47,10 @@ export const useAuth = () => {
   return context;
 };
 
-// 🔧 CHANGE 1: Force empty base URL to avoid double /api
-// Remove any environment variable that might set VITE_API_BASE_URL
 const API_BASE_URL = ""; // Always relative – relies on Vite proxy
 
-// 🔧 CHANGE 2: Normalize endpoint to avoid double slashes
 const normalizeEndpoint = (endpoint: string): string => {
   let e = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-  // Remove any leading /api from endpoint because base is empty and proxy expects /api/...
-  // But we want exactly /api/auth/me, so keep it as is.
   return e;
 };
 
@@ -74,7 +60,7 @@ const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 
   try {
     const fullUrl = `${API_BASE_URL}${normalizeEndpoint(endpoint)}`;
-    console.log(`🌐 Fetching: ${fullUrl}`); // Debug log
+    console.log(`🌐 Fetching: ${fullUrl}`);
     const response = await fetch(fullUrl, {
       ...options,
       credentials: "include",
@@ -143,16 +129,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const login = async (
-    email: string,
-    password: string,
-    role?: string,
-    organization?: string,
-  ) => {
+  // Simplified login – no role or organization parameters
+  const login = async (email: string, password: string) => {
     try {
       const response = await apiFetch("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password, role, organization }),
+        body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
 
@@ -170,15 +152,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       toast.error(error.message || "Network error");
       return { success: false, message: error.message };
     }
-  };
-
-  const loginWithRole = async (
-    email: string,
-    password: string,
-    role: string,
-    organization?: string,
-  ) => {
-    return login(email, password, role, organization);
   };
 
   const logout = async () => {
@@ -239,7 +212,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     isAuthenticated: !!user,
     loading,
     login,
-    loginWithRole,
     logout,
     signup,
     refreshUser,
